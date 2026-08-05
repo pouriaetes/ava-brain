@@ -1,1 +1,55 @@
-Nothing should be ignored based on the provided file changes. The only modified file is 'src/admin/apis.js', which is a source code file and should not be added to .gitignore.
+```
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# IDE
+.vscode/
+.idea/
+
+# Packages
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Testing
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# System
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+```

@@ -111,12 +111,12 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
       try {
         const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
         await aiManager.initialize();
+        const systemPromptText = await getPersona(env.DB) + "\n\nContext about the user you are talking to:\n" + memoryContext;
         const aiResponse = await aiManager.chat(
           [
-            { role: "system", content: await getPersona(env.DB) + "\n\nContext:\n" + memoryContext },
-            { role: "user", content: message.text || "" },
+            { role: "user", content: message.text || "" }
           ],
-          { capabilities: ["chat"] }
+          { capabilities: ["chat"], systemPrompt: systemPromptText }
         );
         responseText = aiResponse.content || responseText;
       } catch (aiError) {

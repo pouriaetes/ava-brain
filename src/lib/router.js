@@ -178,9 +178,32 @@ export class Router {
   }
 
   async aiBasedAnalysis(message, sessionSummary, tehranTime) {
-    // This would call an AI provider for complex analysis
-    // For now, fall back to rule-based analysis
-    return await this.ruleBasedAnalysis(message, sessionSummary);
+    try {
+      const aiManager = new AIProviderManager(this.config, { encrypt, decrypt }, this.logger, this.db);
+      await aiManager.initialize();
+      const userPrompt = `Current user message: "${message.text || ""}"
+Session summary so far: "${sessionSummary || "(none)"}"
+Current Tehran time: ${tehranTime || "(unknown)"}
+
+Analyze this message and return ONLY the JSON object described in your instructions, with no extra text, no markdown code fences, just the raw JSON.`;
+      const result = await aiManager.chat(
+        [{ role: "user", content: userPrompt }],
+        { capabilities: ["chat"], systemPrompt: this.systemPrompt }
+      );
+      const rawText = (result.content || "").trim();
+      const jsonStart = rawText.indexOf("{");
+      const jsonEnd = rawText.lastIndexOf("}") + 1;
+      if (jsonStart === -1 || jsonEnd <= jsonStart) {
+        throw new Error("AI routing response did not contain valid JSON");
+      }
+      const parsed = JSON.parse(rawText.substring(jsonStart, jsonEnd));
+      return parsed;
+    } catch (error3) {
+      if (this.logger?.warn) {
+        await this.logger.warn(this.db, "router", "ai_based_analysis_failed", { error: error3.message });
+      }
+      return await this.ruleBasedAnalysis(message, sessionSummary);
+    }
   }
 
   async getRequiredTables(intent, message) {

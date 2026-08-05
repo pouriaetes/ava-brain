@@ -62,6 +62,8 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     // 5. Get memory context
     const memoryManager = new MemoryManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
     const memoryContext = await memoryManager.getRelevantMemory(chatId, message.text || "");
+    const telegramUserName = message.from?.first_name || "";
+    const finalMemoryContext = telegramUserName ? `The user's Telegram first name is: ${telegramUserName}\n\n${memoryContext}` : memoryContext;
 
     // 6. Build message for router
     const telegramMessage = {
@@ -143,7 +145,7 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
       try {
         const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
         await aiManager.initialize();
-        const systemPromptText = await getPersona(env.DB) + "\n\nContext about the user you are talking to:\n" + memoryContext;
+        const systemPromptText = await getPersona(env.DB) + "\n\nContext about the user you are talking to:\n" + finalMemoryContext;
         const aiResponse = await aiManager.chat(
           [
             { role: "user", content: message.text || "" }

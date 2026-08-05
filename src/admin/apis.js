@@ -9,11 +9,11 @@ export async function handleApisPage(request, env, config) {
 
   if (request.method === "GET") {
     const providers = await db.prepare("SELECT * FROM api_providers ORDER BY priority ASC").all();
-    return layout({
+    return new Response(layout({
       title: "API Providers",
       content: renderProvidersList(providers.results || []),
       session: true,
-    });
+    }), { headers: { "Content-Type": "text/html" } });
   }
 
   if (request.method === "POST") {
@@ -33,11 +33,11 @@ export async function handleApisPage(request, env, config) {
     }
 
     const providers = await db.prepare("SELECT * FROM api_providers ORDER BY priority ASC").all();
-    return layout({
+    return new Response(layout({
       title: "API Providers",
       content: renderProvidersList(providers.results || []),
       session: true,
-    });
+    }), { headers: { "Content-Type": "text/html" } });
   }
 
   return new Response("Method Not Allowed", { status: 405 });

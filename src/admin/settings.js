@@ -7,11 +7,11 @@ export async function handleSettingsPage(request, env, config) {
 
   if (request.method === "GET") {
     const settings = await getAllSettings(db);
-    return layout({
+    return new Response(layout({
       title: "Settings",
       content: renderSettingsForm(settings),
       session: true,
-    });
+    }), { headers: { "Content-Type": "text/html" } });
   }
 
   if (request.method === "POST") {
@@ -39,11 +39,11 @@ export async function handleSettingsPage(request, env, config) {
     await log(db, "info", "settings_updated", { keys: Object.keys(updates) });
 
     const settings = await getAllSettings(db);
-    return layout({
+    return new Response(layout({
       title: "Settings",
       content: `<div class="flash success">Settings saved.</div>${renderSettingsForm(settings)}`,
       session: true,
-    });
+    }), { headers: { "Content-Type": "text/html" } });
   }
 
   return new Response("Method Not Allowed", { status: 405 });

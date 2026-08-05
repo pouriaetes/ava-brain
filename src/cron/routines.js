@@ -8,12 +8,16 @@ import { MemoryManager } from "../lib/memory.js";
 
 export async function handleRoutines(config, env, ctx) {
   const routineManager = new RoutineManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
-  const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
-
+  
+  let aiManager = null;
   try {
+    const { AIProviderManager } = await import("../lib/ai.js");
+    const { encrypt, decrypt } = await import("../lib/crypto.js");
+    aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
     await aiManager.initialize();
   } catch (error) {
     await log(env.DB, "warn", "routine_ai_init", { error: error.message });
+    // Continue without AI manager - routines that don't need AI will still work
   }
 
   try {

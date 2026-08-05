@@ -1,0 +1,56 @@
+// Optional nightly summary: digest of day (completed tasks, reminders, projects)
+import { sendTelegramMessage } from "../lib/telegram.js";
+import { log } from "../lib/logger.js";
+
+export async function handleNightlySummary(config, env, ctx) {
+  try {
+    const summaryEnabled = await env.DB.prepare("SELECT value FROM settings WHERE key = 'nightly_summary_enabled'").first();
+    if (!summaryEnabled || summaryEnabled.value !== "true") return;
+
+    const lastRun = await env.DB.prepare("SELECT value FROM settings WHERE key = 'nightly_summary_last_run_at'").first();
+    const lastDate = lastRun?.value ? new Date(lastRun.value).toDateString() : null;
+    const today = new Date().toDateString();
+
+    if (lastDate === today) return;
+
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayStartStr = todayStart.toISOString();
+
+    const completedProjects = await env.DB
+      .prepare("SELECT COUNT(*) as count FROM projects WHERE status = 'completed' AND updated_at >= ?")
+      .bind(todayStartStr)
+      .first();
+
+    const activeReminders = await env.DB
+      .prepare("SELECT COUNT(*) as count FROM reminders WHERE status = 'pending' AND created_at >= ?")
+      .bind(todayStartStr)
+      .first();
+
+    const activeProjects = await env.DB
+      .prepare("SELECT * FROM projects WHERE status = 'active' ORDER BY updated_at DESC LIMIT 3")
+      .all();
+
+    let message = "<b>🌙 Nightly Summary</b>\n\n";
+    message += `✅ Completed projects today: ${completedProjects.count || 0}\n`;
+    message += `⏰ Active reminders set today: ${activeReminders.count || 0}\n\n`;
+
+    if (activeProjects.results && activeProjects.results.length > 0) {
+      message += "<b>Active projects:</b>\n";
+      for (const project of activeProjects.results) {
+        message += `- ${project.name} (${project.progress_percent || 0}%)\n`;
+      }
+    }
+
+    await sendTelegramMessage(config, config.OWNER_TELEGRAM_ID, message, { parse_mode: "HTML" });
+
+    await env.DB
+      .prepare("UPDATE settings SET value = ?, updated_at = datetime('now') WHERE key = 'nightly_summary_last_run_at'")
+      .bind(new Date().toISOString())
+      .run();
+
+    await log(env.DB, "info", "nightly_summary_sent", { date: today });
+  } catch (error) {
+    await log(env.DB, "error", "nightly_summary_cron", { error: error.message });
+  }
+}

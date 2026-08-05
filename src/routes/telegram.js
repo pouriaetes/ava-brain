@@ -103,6 +103,38 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     }
 
     // 10. Generate response
+    try {
+      if (message.text && message.text.length > 10 && !message.text.startsWith("/")) {
+        const extractionPrompt = `Analyze this message from a user and determine if it reveals any durable personal fact about them (their name, occupation, field of study, location, a preference, a skill, or similar). If yes, respond with ONLY a compact JSON object like {"category": "personal", "fact_key": "name", "fact_value": "Pouria", "confidence": 0.9} — if there are multiple facts, respond with a JSON array of such objects. If there is no clear durable personal fact in this message, respond with exactly: none\n\nMessage: "${message.text}"`;
+        const aiManagerForExtraction = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+        await aiManagerForExtraction.initialize();
+        const extractionResult = await aiManagerForExtraction.chat(
+          [{ role: "user", content: extractionPrompt }],
+          { capabilities: ["chat"] }
+        );
+        const extractedText = (extractionResult.content || "").trim();
+        if (extractedText && extractedText.toLowerCase() !== "none") {
+          try {
+            const jsonStart = extractedText.indexOf("{") !== -1 && (extractedText.indexOf("[") === -1 || extractedText.indexOf("{") < extractedText.indexOf("["))
+              ? extractedText.indexOf("{")
+              : extractedText.indexOf("[");
+            const jsonEnd = Math.max(extractedText.lastIndexOf("}"), extractedText.lastIndexOf("]")) + 1;
+            if (jsonStart !== -1 && jsonEnd > jsonStart) {
+              const parsed = JSON.parse(extractedText.substring(jsonStart, jsonEnd));
+              const factsArray = Array.isArray(parsed) ? parsed : [parsed];
+              for (const fact of factsArray) {
+                if (fact.category && fact.fact_key && fact.fact_value) {
+                  await memoryManager.upsertProfileFact(fact.category, fact.fact_key, fact.fact_value, fact.confidence || 0.7, "auto_extracted", true);
+                }
+              }
+            }
+          } catch {
+          }
+        }
+      }
+    } catch (extractionError) {
+      await log(env.DB, "warn", "profile_fact_extraction_failed", { error: extractionError.message });
+    }
     let responseText;
     if (routing.response_hint) {
       responseText = routing.response_hint;

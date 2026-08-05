@@ -5,7 +5,7 @@ export async function handleDashboardPage(env, config, user = null) {
   const db = env.DB;
   const stats = await getDashboardStats(db);
 
-  return layout({
+  return new Response(layout({
     title: "Dashboard",
     currentPage: "/admin/ava_brain/dashboard",
     content: `
@@ -96,7 +96,7 @@ export async function handleDashboardPage(env, config, user = null) {
       </div>
     `,
     session: user,
-  });
+  }), { headers: { "Content-Type": "text/html" } });
 }
 
 async function getDashboardStats(db) {

@@ -290,7 +290,7 @@ export class MemoryManager {
     const contextParts = [];
 
     // Get short-term memory
-    const shortTerm = await this.getShortTerm(chatId, 5);
+    const shortTerm = await this.getShortTerm(chatId, 15);
     if (shortTerm.length > 0) {
       contextParts.push("Recent context (short-term):");
       for (const item of shortTerm) {

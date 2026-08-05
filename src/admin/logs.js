@@ -46,11 +46,11 @@ export async function handleLogsPage(request, env, config) {
     </div>
   `;
 
-  return layout({
+  return new Response(layout({
     title: "Logs",
     content,
     session: true,
-  });
+  }), { headers: { "Content-Type": "text/html" } });
 }
 
 async function queryLogs(db, { level, event, limit }) {

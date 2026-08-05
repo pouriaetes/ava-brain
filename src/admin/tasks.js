@@ -151,11 +151,11 @@ async function renderTasksPage(db, routineManager, message, error) {
     </div>
   `;
 
-  return layout({
+  return new Response(layout({
     title: "Tasks",
     content,
     session: true,
-  });
+  }), { headers: { "Content-Type": "text/html" } });
 }
 
 async function createRoutine(db, routineManager, formData) {

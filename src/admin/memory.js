@@ -114,11 +114,11 @@ async function renderMemoryPage(db, message, error) {
     </div>
   `;
 
-  return layout({
+  return new Response(layout({
     title: "Memory",
     content,
     session: true,
-  });
+  }), { headers: { "Content-Type": "text/html" } });
 }
 
 async function addProfileFact(db, formData) {

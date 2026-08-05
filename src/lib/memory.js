@@ -348,6 +348,11 @@ export class MemoryManager {
       }
     }
 
-    return contextParts.join("\n\n");
+    let fullContext = contextParts.join("\n\n");
+    const MAX_CONTEXT_CHARS = 6000;
+    if (fullContext.length > MAX_CONTEXT_CHARS) {
+      fullContext = fullContext.substring(0, MAX_CONTEXT_CHARS) + "\n\n[...context truncated due to length...]";
+    }
+    return fullContext;
   }
 }

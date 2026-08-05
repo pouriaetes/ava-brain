@@ -157,68 +157,9 @@ function renderProvidersList(providers) {
       <h2>AI Providers</h2>
       <p class="muted">Workers AI requires no API key. External providers need API key (encrypted).</p>
     </div>
-  `;
 
-  for (const provider of providers) {
-    const health = JSON.parse(provider.health_json || "{}");
-    const caps = JSON.parse(provider.capabilities || "[]").join(", ");
-    html += `
-      <div class="card">
-        <h3>${escHtml(provider.name)} <span class="badge ${provider.enabled ? "active" : "inactive"}">${provider.enabled ? "Enabled" : "Disabled"}</span></h3>
-        <p class="muted">${escHtml(provider.kind)} | Model: ${escHtml(provider.model)} | Priority: ${provider.priority} | Capabilities: ${escHtml(caps)}</p>
-        <p class="muted">Health: ${escHtml(health.status || "unknown")} | Timeout: ${provider.timeout_ms}ms</p>
-
-        <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
-          <input type="hidden" name="action" value="toggle">
-          <input type="hidden" name="id" value="${provider.id}">
-          <button type="submit" class="small">${provider.enabled ? "Disable" : "Enable"}</button>
-        </form>
-
-        <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
-          <input type="hidden" name="action" value="test">
-          <input type="hidden" name="id" value="${provider.id}">
-          <button type="submit" class="small">Test</button>
-        </form>
-
-        <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
-          <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="id" value="${provider.id}">
-          <button type="submit" class="small danger" onclick="return confirm('Delete this provider?')">Delete</button>
-        </form>
-
-        <form method="POST" action="/admin/ava_brain/apis" style="margin-top:12px">
-          <input type="hidden" name="action" value="edit">
-          <input type="hidden" name="id" value="${provider.id}">
-          <div class="row">
-            <div class="col"><label>Name</label><input type="text" name="name" value="${escHtml(provider.name)}"></div>
-            <div class="col"><label>Kind</label>
-              <select name="kind">
-                <option value="workers_ai" ${provider.kind === "workers_ai" ? "selected" : ""}>Workers AI</option>
-                <option value="gemini" ${provider.kind === "gemini" ? "selected" : ""}>Gemini</option>
-                <option value="openai_compatible" ${provider.kind === "openai_compatible" ? "selected" : ""}>OpenAI Compatible</option>
-              </select>
-            </div>
-          </div>
-          <label>Model</label><input type="text" name="model" value="${escHtml(provider.model)}">
-          ${provider.kind !== "workers_ai" ? `
-            <label>Base URL</label><input type="text" name="base_url" value="${escHtml(provider.base_url || "")}" placeholder="https://api.example.com/v1">
-            <label>API Key (leave blank to keep existing)</label><input type="password" name="api_key" placeholder="••••••••">
-          ` : ""}
-          <div class="row">
-            <div class="col"><label>Priority</label><input type="number" name="priority" value="${provider.priority}"></div>
-            <div class="col"><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="${provider.timeout_ms}"></div>
-            <div class="col"><label>Max Retries</label><input type="number" name="max_retries" value="${provider.max_retries}"></div>
-          </div>
-          <label>Capabilities (comma-separated)</label><input type="text" name="capabilities" value="${escHtml(caps)}">
-          <label><input type="checkbox" name="enabled" ${provider.enabled ? "checked" : ""}> Enabled</label>
-          <button type="submit">Update Provider</button>
-        </form>
-      </div>
-    `;
-  }
-
-  html += `
-    <div class="card">
+    <!-- Add New Provider Section (hidden by default) -->
+    <div class="card" id="add-provider-card" style="display:none;">
       <h3>Add New Provider</h3>
       <form method="POST" action="/admin/ava_brain/apis">
         <input type="hidden" name="action" value="add">
@@ -244,7 +185,85 @@ function renderProvidersList(providers) {
         <button type="submit">Add Provider</button>
       </form>
     </div>
+
+    <!-- Button to show Add New Provider form -->
+    <div class="card" style="text-align:center;">
+      <button type="button" class="btn success" onclick="document.getElementById('add-provider-card').style.display='block'; this.style.display='none';">+ Add New Provider</button>
+    </div>
   `;
+
+  for (const provider of providers) {
+    const health = JSON.parse(provider.health_json || "{}");
+    const caps = JSON.parse(provider.capabilities || "[]").join(", ");
+    const healthStatus = health.status || "unknown";
+    const healthBadgeClass = healthStatus === "healthy" ? "active" : (healthStatus === "unhealthy" ? "inactive" : "warning");
+    
+    html += `
+      <div class="card provider-card">
+        <!-- Collapsed Summary View -->
+        <div class="provider-summary" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <h3 style="margin:0;">${escHtml(provider.name)}</h3>
+            <span class="badge ${provider.enabled ? "active" : "inactive"}">${provider.enabled ? "Enabled" : "Disabled"}</span>
+            <span class="badge ${healthBadgeClass}">${escHtml(healthStatus)}</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <span class="muted" style="font-size:0.85rem;">${escHtml(provider.kind)} | Model: ${escHtml(provider.model)} | Priority: ${provider.priority}</span>
+            <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
+              <input type="hidden" name="action" value="toggle">
+              <input type="hidden" name="id" value="${provider.id}">
+              <button type="submit" class="small ${provider.enabled ? "secondary" : "success"}">${provider.enabled ? "Disable" : "Enable"}</button>
+            </form>
+            <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
+              <input type="hidden" name="action" value="test">
+              <input type="hidden" name="id" value="${provider.id}">
+              <button type="submit" class="small">Test</button>
+            </form>
+            <button type="button" class="small" onclick="document.getElementById('provider-edit-${provider.id}').style.display='block'; document.getElementById('provider-summary-${provider.id}').style.display='none';">Edit</button>
+            <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="id" value="${provider.id}">
+              <button type="submit" class="small danger" onclick="return confirm('Delete this provider?')">Delete</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Expanded Edit Form (hidden by default) -->
+        <div id="provider-edit-${provider.id}" class="provider-edit-form" style="display:none;margin-top:16px;border-top:1px solid var(--border-color);padding-top:16px;">
+          <form method="POST" action="/admin/ava_brain/apis">
+            <input type="hidden" name="action" value="edit">
+            <input type="hidden" name="id" value="${provider.id}">
+            <div class="row">
+              <div class="col"><label>Name</label><input type="text" name="name" value="${escHtml(provider.name)}"></div>
+              <div class="col"><label>Kind</label>
+                <select name="kind">
+                  <option value="workers_ai" ${provider.kind === "workers_ai" ? "selected" : ""}>Workers AI</option>
+                  <option value="gemini" ${provider.kind === "gemini" ? "selected" : ""}>Gemini</option>
+                  <option value="openai_compatible" ${provider.kind === "openai_compatible" ? "selected" : ""}>OpenAI Compatible</option>
+                </select>
+              </div>
+            </div>
+            <label>Model</label><input type="text" name="model" value="${escHtml(provider.model)}">
+            ${provider.kind !== "workers_ai" ? `
+              <label>Base URL</label><input type="text" name="base_url" value="${escHtml(provider.base_url || "")}" placeholder="https://api.example.com/v1">
+              <label>API Key (leave blank to keep existing)</label><input type="password" name="api_key" placeholder="••••••••">
+            ` : ""}
+            <div class="row">
+              <div class="col"><label>Priority</label><input type="number" name="priority" value="${provider.priority}"></div>
+              <div class="col"><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="${provider.timeout_ms}"></div>
+              <div class="col"><label>Max Retries</label><input type="number" name="max_retries" value="${provider.max_retries}"></div>
+            </div>
+            <label>Capabilities (comma-separated)</label><input type="text" name="capabilities" value="${escHtml(caps)}">
+            <label><input type="checkbox" name="enabled" ${provider.enabled ? "checked" : ""}> Enabled</label>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button type="submit">Update Provider</button>
+              <button type="button" class="secondary" onclick="document.getElementById('provider-edit-${provider.id}').style.display='none'; document.getElementById('provider-summary-${provider.id}').style.display='flex';">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
 
   return html;
 }

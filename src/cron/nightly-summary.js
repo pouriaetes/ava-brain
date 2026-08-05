@@ -42,6 +42,21 @@ export async function handleNightlySummary(config, env, ctx) {
       }
     }
 
+    try {
+      const MemoryManager = (await import("../lib/memory.js")).MemoryManager;
+      const AIProviderManager = (await import("../lib/ai-providers.js")).AIProviderManager;
+      const { encrypt, decrypt } = await import("../lib/crypto.js");
+      const memoryManager2 = new MemoryManager(config, null, { info: log3.info, error: log3.error, warn: log3.warn }, env.DB);
+      const aiManager2 = new AIProviderManager(config, { encrypt, decrypt }, { info: log3.info, error: log3.error, warn: log3.warn }, env.DB);
+      await aiManager2.initialize();
+      const summaryResult = await memoryManager2.summarizeOldShortTerm(config.OWNER_TELEGRAM_ID, aiManager2);
+      if (summaryResult.summarized > 0) {
+        await log3(env.DB, "info", "nightly_memory_summarization", { entriesSummarized: summaryResult.summarized });
+      }
+    } catch (summaryError) {
+      await log3(env.DB, "warn", "nightly_memory_summarization_skipped", { error: summaryError.message });
+    }
+
     await sendTelegramMessage(config, config.OWNER_TELEGRAM_ID, message, { parse_mode: "HTML" });
 
     await env.DB

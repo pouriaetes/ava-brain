@@ -127,25 +127,33 @@ export class GeminiAdapter {
 
   async chat(messages, options = {}) {
     if (!this.apiKey) throw new Error("Gemini API key not configured");
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.config.model || "gemini-pro"}:generateContent?key=${this.apiKey}`;
-    const systemPrompt = options.systemPrompt || "";
-    const userMessage = messages.find(m => m.role === "user")?.content || "";
-
+    const modelName = this.config.model || "gemini-3.6-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+    const formattedContents = messages.filter((m) => m.role !== "system").map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content || "" }]
+    }));
+    const requestBody = {
+      contents: formattedContents,
+      generationConfig: { maxOutputTokens: 1024 }
+    };
+    if (options.systemPrompt) {
+      requestBody.systemInstruction = { parts: [{ text: options.systemPrompt }] };
+    }
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt + "\n" + userMessage }] }],
-        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-      }),
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": this.apiKey
+      },
+      body: JSON.stringify(requestBody)
     });
-
     if (!response.ok) throw new Error(`Gemini API error ${response.status}`);
     const data = await response.json();
     return {
       content: data.candidates?.[0]?.content?.parts?.[0]?.text || "",
       provider: "gemini",
-      model: this.config.model,
+      model: modelName
     };
   }
 

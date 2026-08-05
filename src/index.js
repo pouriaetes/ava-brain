@@ -1,4 +1,5 @@
 // Ava Brain — Main Cloudflare Worker entry point
+// Version: 2.0.0 (Fixed Cron Error, Enhanced UI/UX)
 // Routes: /admin/ava_brain/* → admin panel, /telegram → webhook, /health → health check
 // Cron: */5 * * * * (due checks), 0 4 * * * (cleanup + nightly summary)
 

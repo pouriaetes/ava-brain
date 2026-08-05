@@ -270,6 +270,34 @@ export class MemoryManager {
     }
   }
 
+  async summarizeOldShortTerm(chatId, aiManager) {
+    try {
+      const oldEntries = await this.db.prepare(
+        "SELECT * FROM memory_short_term WHERE session_id = ? AND created_at < datetime('now', '-1 day') ORDER BY created_at ASC LIMIT 50"
+      ).bind(chatId).all();
+      const entries = oldEntries.results || [];
+      if (entries.length < 5) return { summarized: 0 };
+      const entryText = entries.map((e) => `[${e.type}] ${e.content}`).join("\n");
+      const summaryPrompt = `Summarize the following conversation memory entries into a single short paragraph (3-5 sentences) capturing the key facts, preferences, and context. Be concise and factual, do not add anything not present in the entries.\n\nEntries:\n${entryText}`;
+      const result = await aiManager.chat(
+        [{ role: "user", content: summaryPrompt }],
+        { capabilities: ["chat"] }
+      );
+      const summaryText = result.content || "";
+      if (!summaryText) return { summarized: 0 };
+      await this.saveLongTerm("conversation_summary", `Summary for chat ${chatId}`, summaryText, ["auto_summary"], 2, "nightly_summarization");
+      const idsToDelete = entries.map((e) => e.id);
+      for (const id of idsToDelete) {
+        await this.db.prepare("DELETE FROM memory_short_term WHERE id = ?").bind(id).run();
+      }
+      await this.logger.info(this.db, "memory", "old_short_term_summarized", { chatId, entriesSummarized: entries.length });
+      return { summarized: entries.length };
+    } catch (error3) {
+      await this.logger.error(this.db, "memory", "summarize_old_short_term_error", { error: error3.message, chatId });
+      return { summarized: 0, error: error3.message };
+    }
+  }
+
   async cleanupOldLogs() {
     try {
       // Keep only last 30 days of logs

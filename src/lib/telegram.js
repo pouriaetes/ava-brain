@@ -20,9 +20,12 @@ export async function sendTelegramMessage(config, chatId, text, options = {}) {
     const payload = {
       chat_id: chatId,
       text: chunk,
-      parse_mode: options.parse_mode || "HTML",
       disable_web_page_preview: options.disable_web_page_preview ?? true,
     };
+
+    if (options.parse_mode) {
+      payload.parse_mode = options.parse_mode;
+    }
 
     if (options.reply_to_message_id) {
       payload.reply_to_message_id = options.reply_to_message_id;

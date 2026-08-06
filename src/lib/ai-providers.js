@@ -41,8 +41,7 @@ export class WorkersAIAdapter {
     const prompt = `Extract ${task} from this text: ${text}\n\nReturn JSON only.`;
     const result = await this.ai.run(
       this.model,
-      { prompt, max_tokens: 1024 },
-      { timeout: this.timeout }
+      { prompt, max_tokens: 1024 }
     );
 
     try {
@@ -62,8 +61,7 @@ export class WorkersAIAdapter {
     const prompt = `Summarize this text in 3-5 sentences:\n\n${text}`;
     const result = await this.ai.run(
       this.model,
-      { prompt, max_tokens: 1024 },
-      { timeout: this.timeout }
+      { prompt, max_tokens: 1024 }
     );
 
     return {
@@ -77,8 +75,7 @@ export class WorkersAIAdapter {
     const prompt = `Given these RSS feed sources, provide a concise news summary:\n\n${rssUrls.map(content => `- ${content.substring(0, 300)}`).join("\n")}`;
     const result = await this.ai.run(
       this.model,
-      { prompt, max_tokens: 1024 },
-      { timeout: this.timeout }
+      { prompt, max_tokens: 1024 }
     );
 
     return {
@@ -92,8 +89,7 @@ export class WorkersAIAdapter {
     const prompt = `Given this project context: ${context}, provide a natural, helpful followup response as Ava.`;
     const result = await this.ai.run(
       this.model,
-      { prompt, max_tokens: 1024 },
-      { timeout: this.timeout }
+      { prompt, max_tokens: 1024 }
     );
 
     return {

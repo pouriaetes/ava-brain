@@ -69,7 +69,7 @@ export class AIProviderManager {
       logger: this.logger,
     };
 
-    this.adapters[provider.id] = new AdapterClass(adapterConfig);
+    this.adapters[provider.id] = new AdapterClass(adapterConfig, this.crypto, this.logger);
   }
 
   async chat(messages, options = {}) {

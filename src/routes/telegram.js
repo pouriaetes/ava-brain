@@ -27,21 +27,28 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     }
 
     const body = await request.json();
-
-    // 2. Owner-only check
+    if (!body.message && !body.callback_query) {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
     const fromId = String(body.message?.from?.id || body.callback_query?.from?.id || "");
     const chatId = String(body.message?.chat?.id || body.callback_query?.message?.chat?.id || "");
     const chatType = body.message?.chat?.type || body.callback_query?.message?.chat?.type || "private";
-
+    if (!chatId) {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
     if (fromId !== String(config.OWNER_TELEGRAM_ID)) {
       if (chatType === "group" || chatType === "supergroup") {
         return new Response(JSON.stringify({ ok: true }), {
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json" }
         });
       }
       await sendTelegramMessage(config, chatId, "This bot is private.");
       return new Response(JSON.stringify({ ok: true }), {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" }
       });
     }
 

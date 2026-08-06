@@ -18,7 +18,11 @@ export async function handleDueReminders(config, env, ctx) {
         const message = `🔔 <b>Reminder</b>\n\n<b>${reminder.title}</b>\n${reminder.description || ""}`;
         await sendTelegramMessage(config, ownerId, message, { parse_mode: "HTML" });
 
-        await reminderManager.markNotified(reminder.id);
+        if (reminder.repeat_rule && reminder.repeat_rule !== "") {
+          await reminderManager.rescheduleRecurringReminder(reminder.id, reminder.repeat_rule, reminder.remind_at_utc);
+        } else {
+          await reminderManager.markNotified(reminder.id);
+        }
 
         // If linked to an event, update next occurrence for recurring events
         if (reminder.event_id) {

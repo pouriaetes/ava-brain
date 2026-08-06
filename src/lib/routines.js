@@ -27,8 +27,10 @@ export class RoutineManager {
           intervalHours,
           cronExpression,
           JSON.stringify(payload),
-          0, // enabled=false
-          1, // draft=true
+          1,
+          // enabled=true (auto-enabled since it was created by the AI directly from a user request)
+          0,
+          // draft=false (no manual confirmation needed)
           nextRunUtc
         )
         .run();

@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes. The modification of 'src/routes/telegram.js' is a source code file that should be tracked in version control, and there are no build artifacts, dependencies, or temporary files listed in the changes that would require adding ignore rules.
+(src/routes/telegram.js)

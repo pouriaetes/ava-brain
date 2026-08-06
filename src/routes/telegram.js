@@ -62,6 +62,14 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     // 5. Get memory context
     const memoryManager = new MemoryManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
     const memoryContext = await memoryManager.getRelevantMemory(chatId, message.text || "");
+    const recentTurns = await memoryManager.getShortTerm(chatId, 12);
+    const conversationHistory = (recentTurns || [])
+      .filter((entry) => entry.type === "user_message" || entry.type === "assistant_reply")
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .map((entry) => ({
+        role: entry.type === "assistant_reply" ? "assistant" : "user",
+        content: entry.content || ""
+      }));
     const telegramUserName = message.from?.first_name || "";
     const finalMemoryContext = telegramUserName ? `The user's Telegram first name is: ${telegramUserName}\n\n${memoryContext}` : memoryContext;
 
@@ -149,6 +157,7 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
         const systemPromptText = await getPersona(env.DB) + `\n\nThe current real date and time (Asia/Tehran timezone) is: ${nowTehran}. Always use this as the true current date/time when the user asks about time, dates, or anything time-relative like "today", "tomorrow", or "how much time is left" — never guess or say you don't know the time.` + "\n\nContext about the user you are talking to:\n" + finalMemoryContext;
         const aiResponse = await aiManager.chat(
           [
+            ...conversationHistory,
             { role: "user", content: message.text || "" }
           ],
           { capabilities: ["chat"], systemPrompt: systemPromptText }
@@ -173,6 +182,8 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
         const newSummary = `${(session.summary || "")} ${message.text?.substring(0, 100)}`.trim().substring(0, 500);
         await sessionManager.updateSessionSummary(session.id, newSummary);
       }
+      await memoryManager.saveShortTerm(chatId, "user_message", message.text || "", 1, {});
+      await memoryManager.saveShortTerm(chatId, "assistant_reply", responseText, 1, {});
     }
 
     // 13. Update last interaction

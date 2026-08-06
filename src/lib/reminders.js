@@ -128,6 +128,31 @@ export class ReminderManager {
     }
   }
 
+  // Reschedule a recurring reminder to its next occurrence instead of marking it permanently notified
+  async rescheduleRecurringReminder(reminderId, repeatRule, currentRemindAtUtc) {
+    try {
+      const current = new Date(currentRemindAtUtc);
+      let next = new Date(current);
+      if (repeatRule === "daily") {
+        next.setUTCDate(next.getUTCDate() + 1);
+      } else if (repeatRule === "weekly") {
+        next.setUTCDate(next.getUTCDate() + 7);
+      } else if (repeatRule === "monthly") {
+        next.setUTCMonth(next.getUTCMonth() + 1);
+      } else {
+        await this.markNotified(reminderId);
+        return;
+      }
+      await this.db.prepare(
+        "UPDATE reminders SET remind_at_utc = ?, status = 'pending', notified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+      ).bind(next.toISOString(), reminderId).run();
+      await this.logger.info(this.db, "reminders", "rescheduled", { reminderId, repeatRule, nextRemindAtUtc: next.toISOString() });
+    } catch (error) {
+      await this.logger.error(this.db, "reminders", "reschedule_error", { error: error.message, reminderId });
+      await this.markNotified(reminderId);
+    }
+  }
+
   // Get upcoming reminders for a user
   async getUpcomingReminders(limit = 10) {
     try {

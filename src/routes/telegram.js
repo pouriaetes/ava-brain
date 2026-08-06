@@ -145,7 +145,8 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
       try {
         const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
         await aiManager.initialize();
-        const systemPromptText = await getPersona(env.DB) + "\n\nContext about the user you are talking to:\n" + finalMemoryContext;
+        const nowTehran = new Date().toLocaleString("en-US", { timeZone: "Asia/Tehran", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+        const systemPromptText = await getPersona(env.DB) + `\n\nThe current real date and time (Asia/Tehran timezone) is: ${nowTehran}. Always use this as the true current date/time when the user asks about time, dates, or anything time-relative like "today", "tomorrow", or "how much time is left" — never guess or say you don't know the time.` + "\n\nContext about the user you are talking to:\n" + finalMemoryContext;
         const aiResponse = await aiManager.chat(
           [
             { role: "user", content: message.text || "" }

@@ -72,7 +72,7 @@ export class Router {
     try {
       // Use rule-based analysis first for speed
       const ruleBasedResult = await this.ruleBasedAnalysis(message, sessionSummary);
-      if (ruleBasedResult) {
+      if (ruleBasedResult && ruleBasedResult.intent !== "general_chat") {
         return ruleBasedResult;
       }
 

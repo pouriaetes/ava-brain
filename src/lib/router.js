@@ -188,7 +188,7 @@ Current Tehran time: ${tehranTime || "(unknown)"}
 Analyze this message and return ONLY the JSON object described in your instructions, with no extra text, no markdown code fences, just the raw JSON.`;
       const result = await aiManager.chat(
         [{ role: "user", content: userPrompt }],
-        { capabilities: ["chat"], systemPrompt: this.systemPrompt }
+        { capabilities: ["routing"], systemPrompt: this.systemPrompt }
       );
       const rawText = (result.content || "").trim();
       const jsonStart = rawText.indexOf("{");

@@ -313,6 +313,57 @@ export class MemoryManager {
     }
   }
 
+  async reviewShortTermForDatesAndImportance(chatId, aiManager) {
+    try {
+      const entries = await this.getShortTerm(chatId, 30);
+      if (!entries || entries.length === 0) return { reviewed: 0, moved: 0 };
+      const entryList = entries.map((e) => `[id:${e.id}] [${e.type}] ${e.content} (saved: ${e.created_at})`).join("\n");
+      const reviewPrompt = `Today's date and time: ${(/* @__PURE__ */ new Date()).toISOString()}
+Review the following short-term memory entries. For each entry, decide:
+1. If it mentions a specific date/deadline (like an exam, appointment, or event) that has ALREADY PASSED relative to today, it should be converted into a long-term memory as a completed fact (e.g. "user had exam X on date Y") and removed from short-term.
+2. If it mentions a specific date/deadline that has NOT yet passed, leave it in short-term (do not touch it).
+3. If it's an important durable fact/preference not tied to a date, it can also be promoted to long-term.
+4. Otherwise leave it alone.
+
+Return ONLY a JSON array (no extra text) of objects like: [{"id": 123, "action": "promote_to_long_term", "long_term_title": "...", "long_term_content": "...", "long_term_type": "event_completed"}, {"id": 456, "action": "keep"}]
+Only include entries that need action "promote_to_long_term" or explicit "keep" is not required — you may omit entries that need no action at all.
+
+Entries:
+${entryList}`;
+      const result = await aiManager.chat(
+        [{ role: "user", content: reviewPrompt }],
+        { capabilities: ["memory_analysis"] }
+      );
+      const rawText = (result.content || "").trim();
+      const jsonStart = rawText.indexOf("[");
+      const jsonEnd = rawText.lastIndexOf("]") + 1;
+      if (jsonStart === -1 || jsonEnd <= jsonStart) {
+        return { reviewed: entries.length, moved: 0 };
+      }
+      const actions = JSON.parse(rawText.substring(jsonStart, jsonEnd));
+      let movedCount = 0;
+      for (const act of actions) {
+        if (act.action === "promote_to_long_term" && act.id) {
+          await this.saveLongTerm(
+            act.long_term_type || "memory_review",
+            act.long_term_title || "Reviewed memory",
+            act.long_term_content || "",
+            ["auto_reviewed"],
+            2,
+            "periodic_memory_review"
+          );
+          await this.db.prepare("DELETE FROM memory_short_term WHERE id = ?").bind(act.id).run();
+          movedCount++;
+        }
+      }
+      await this.logger.info(this.db, "memory", "periodic_review_completed", { chatId, reviewed: entries.length, moved: movedCount });
+      return { reviewed: entries.length, moved: movedCount };
+    } catch (error3) {
+      await this.logger.error(this.db, "memory", "periodic_review_error", { error: error3.message, chatId });
+      return { reviewed: 0, moved: 0, error: error3.message };
+    }
+  }
+
   // Memory retrieval for context
   async getRelevantMemory(chatId, messageText = "") {
     const contextParts = [];

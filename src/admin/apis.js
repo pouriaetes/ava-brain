@@ -52,7 +52,11 @@ async function addProvider(db, formData, config) {
   const priority = parseInt(formData.get("priority") || "10", 10);
   const timeoutMs = parseInt(formData.get("timeout_ms") || "30000", 10);
   const maxRetries = parseInt(formData.get("max_retries") || "2", 10);
-  const capabilities = JSON.stringify((formData.get("capabilities") || "chat").split(",").map(s => s.trim()));
+  const selectedCapabilities = [];
+  if (formData.get("cap_chat")) selectedCapabilities.push("chat");
+  if (formData.get("cap_routing")) selectedCapabilities.push("routing");
+  if (formData.get("cap_memory_analysis")) selectedCapabilities.push("memory_analysis");
+  const capabilities = JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
 
   let apiKeyEnc = "";
   if (apiKey && config.MASTER_KEY) {
@@ -79,7 +83,11 @@ async function editProvider(db, formData, config) {
   const priority = parseInt(formData.get("priority") || "10", 10);
   const timeoutMs = parseInt(formData.get("timeout_ms") || "30000", 10);
   const maxRetries = parseInt(formData.get("max_retries") || "2", 10);
-  const capabilities = JSON.stringify((formData.get("capabilities") || "chat").split(",").map(s => s.trim()));
+  const selectedCapabilities = [];
+  if (formData.get("cap_chat")) selectedCapabilities.push("chat");
+  if (formData.get("cap_routing")) selectedCapabilities.push("routing");
+  if (formData.get("cap_memory_analysis")) selectedCapabilities.push("memory_analysis");
+  const capabilities = JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
   const enabled = formData.get("enabled") === "on" ? 1 : 0;
 
   const fields = ["name = ?", "kind = ?", "base_url = ?", "model = ?", "priority = ?", "timeout_ms = ?", "max_retries = ?", "capabilities = ?", "enabled = ?"];
@@ -181,7 +189,12 @@ function renderProvidersList(providers) {
           <div class="col"><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="30000"></div>
           <div class="col"><label>Max Retries</label><input type="number" name="max_retries" value="2"></div>
         </div>
-        <label>Capabilities (comma-separated)</label><input type="text" name="capabilities" value="chat,summary,extract,news,followup,router">
+        <label>Capabilities (what this provider should be used for)</label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+          <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" checked> Chat (main conversation replies)</label>
+          <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing"> Routing (intent/action detection)</label>
+          <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis"> Memory Analysis (periodic short-term memory review)</label>
+        </div>
         <button type="submit">Add Provider</button>
       </form>
     </div>
@@ -194,7 +207,7 @@ function renderProvidersList(providers) {
 
   for (const provider of providers) {
     const health = JSON.parse(provider.health_json || "{}");
-    const caps = JSON.parse(provider.capabilities || "[]").join(", ");
+    const caps = JSON.parse(provider.capabilities || "[]");
     const healthStatus = health.status || "unknown";
     const healthBadgeClass = healthStatus === "healthy" ? "active" : (healthStatus === "unhealthy" ? "inactive" : "warning");
     
@@ -253,7 +266,12 @@ function renderProvidersList(providers) {
               <div class="col"><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="${provider.timeout_ms}"></div>
               <div class="col"><label>Max Retries</label><input type="number" name="max_retries" value="${provider.max_retries}"></div>
             </div>
-            <label>Capabilities (comma-separated)</label><input type="text" name="capabilities" value="${escHtml(caps)}">
+            <label>Capabilities (what this provider should be used for)</label>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
+              <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" ${caps.includes("chat") ? "checked" : ""}> Chat (main conversation replies)</label>
+              <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing" ${caps.includes("routing") ? "checked" : ""}> Routing (intent/action detection)</label>
+              <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis" ${caps.includes("memory_analysis") ? "checked" : ""}> Memory Analysis (periodic short-term memory review)</label>
+            </div>
             <label><input type="checkbox" name="enabled" ${provider.enabled ? "checked" : ""}> Enabled</label>
             <div style="margin-top:12px;display:flex;gap:8px;">
               <button type="submit">Update Provider</button>

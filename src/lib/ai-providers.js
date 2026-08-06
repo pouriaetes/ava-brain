@@ -14,18 +14,22 @@ export class WorkersAIAdapter {
   async chat(messages, options = {}) {
     try {
       const systemPrompt = options.systemPrompt || "You are Ava, a helpful assistant.";
-      const userMessage = messages.find(m => m.role === "user")?.content || "";
-
+      const formattedMessages = [
+        { role: "system", content: systemPrompt },
+        ...messages.filter((m) => m.role !== "system").map((m) => ({
+          role: m.role === "assistant" ? "assistant" : "user",
+          content: m.content || ""
+        }))
+      ];
       const completion = await this.ai.run(
         this.model,
-        { prompt: `${systemPrompt}\n\n${userMessage}`, max_tokens: 1024, temperature: 0.7 },
-        { timeout: this.timeout }
+        { messages: formattedMessages, max_tokens: 1024, temperature: 0.7 }
       );
-
+      const responseText = completion.response || completion.result || "";
       return {
-        content: completion.result || "",
+        content: responseText,
         provider: "workers_ai",
-        model: this.model,
+        model: this.model
       };
     } catch (error) {
       if (this.logger?.error) this.logger.error(this.config.db, "ai_providers", "workers_ai_error", { error: error.message });
@@ -100,18 +104,18 @@ export class WorkersAIAdapter {
 
   async health() {
     try {
-      await this.ai.run(this.model, { prompt: "test", max_tokens: 1 }, { timeout: 10000 });
+      await this.ai.run(this.model, { messages: [{ role: "user", content: "test" }], max_tokens: 1 });
       return {
         status: "healthy",
-        last_check: new Date().toISOString(),
-        provider: "workers_ai",
+        last_check: (/* @__PURE__ */ new Date()).toISOString(),
+        provider: "workers_ai"
       };
     } catch (error) {
       return {
         status: "unhealthy",
         error: error.message,
-        last_check: new Date().toISOString(),
-        provider: "workers_ai",
+        last_check: (/* @__PURE__ */ new Date()).toISOString(),
+        provider: "workers_ai"
       };
     }
   }

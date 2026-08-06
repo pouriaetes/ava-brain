@@ -7,6 +7,10 @@ import { handleProjectFollowups } from "./project-followup.js";
 import { handleCheckin } from "./checkin.js";
 import { handleCleanup } from "./cleanup.js";
 import { handleNightlySummary } from "./nightly-summary.js";
+import { MemoryManager } from "../lib/memory.js";
+import { AIProviderManager } from "../lib/ai.js";
+import { log } from "../lib/logger.js";
+import { encrypt, decrypt } from "../lib/crypto.js";
 
 export default {
   async scheduled(controller, env, ctx) {
@@ -34,6 +38,16 @@ export default {
         // Daily 4 AM UTC: cleanup + nightly summary
         await handleCleanup(config, env, ctx);
         await handleNightlySummary(config, env, ctx);
+      } else if (cron === "0 6 */2 * *") {
+        try {
+          const memoryManager = new MemoryManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+          const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+          await aiManager.initialize();
+          const reviewResult = await memoryManager.reviewShortTermForDatesAndImportance(config.OWNER_TELEGRAM_ID, aiManager);
+          await log(env.DB, "info", "periodic_memory_review_cron", reviewResult);
+        } catch (reviewError) {
+          await log(env.DB, "warn", "periodic_memory_review_cron_failed", { error: reviewError.message });
+        }
       }
 
       return new Response("OK");

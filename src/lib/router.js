@@ -150,10 +150,8 @@ export class Router {
 
     const explicitReminderRegex = /(remind|reminder|یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|یادآوری\s*کن)/i;
     const explicitReminder = explicitReminderRegex.test(rawText);
-
     const scheduleRegex = /(هر\s*روز|هر\s*شب|هر\s*هفته|هر\s*ماه|هر\s*سال|هر\s*\d+\s*روز|هر\s*[۰-۹]+\s*روز|روزانه|هفتگی|ماهانه|فردا|پس\s*فردا|امروز|شنبه|یکشنبه|دوشنبه|سه\s*شنبه|چهارشنبه|پنج\s*شنبه|جمعه|every\s*(day|night|week|month|year)|daily|weekly|monthly|hourly|tomorrow|today|\d{1,2}:\d{2}|[۰-۹]{1,2}[:：][۰-۹]{2}|ساعت\s*\d+|ساعت\s*[۰-۹]+)/i;
-
-    const notifyRegex = /(یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|(بهم|برام)?\s*(بگو|بگی|پیام\s*بده|پیام\s*بدی|خبر\s*بده|خبر\s*بدی|زنگ\s*بزن|زنگ\s*بزنی|بفرست|بفرستی|ارسال\s*کن|ارسال\s*کنی|یادآوری\s*کن)|remind|reminder)/i;
+    const notifyRegex = /(یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|صدام\s*(کن|بکن|بزن)|صدا\s*بزن|صدام\s*کنی|بیدارم\s*کن|بیدار\s*کن|بیدارم\s*کنی|(بهم|برام)?\s*(بگو|بگی|پیام\s*بده|پیام\s*بدی|خبر\s*بده|خبر\s*بدی|زنگ\s*بزن|زنگ\s*بزنی|بفرست|بفرستی|ارسال\s*کن|ارسال\s*کنی|یادآوری\s*کن)|remind|reminder)/i;
 
     if (explicitReminder || (scheduleRegex.test(rawText) && notifyRegex.test(rawText))) {
       return {
@@ -345,7 +343,15 @@ Analyze this message and return ONLY the JSON object described in your instructi
     if (typeof output.response_hint !== "string") {
       output.response_hint = "";
     }
-
+    var allowedIntents = ["general_chat", "profile_update", "ephemeral_note", "reminder_create", "reminder_query", "event_create", "event_query", "project_create", "project_update", "project_query", "project_complete", "routine_create", "routine_update", "routine_query", "news_config", "query_memory", "delete_request", "admin_help", "followup_response", "image_request", "voice_reply_request"];
+    if (!allowedIntents.includes(output.intent)) {
+      output.intent = "general_chat";
+      output.actions = [];
+      output.response_hint = "";
+      output.needs_user_confirmation = false;
+    }
+    var allowedActionsForValidation = ["create_reminder", "create_event", "upsert_entity", "create_project", "update_project", "complete_project", "create_routine", "update_routine", "delete_short_term_memory", "save_long_term_memory"];
+    output.actions = output.actions.filter((a) => allowedActionsForValidation.includes(a));
     return output;
   }
 }

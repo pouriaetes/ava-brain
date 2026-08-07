@@ -1,1 +1,5 @@
-(src/cron/due-reminders.js, src/lib/reminders.js, src/lib/router.js, src/routes/telegram.js)
+```javascript
+// No build artifacts, dependencies, or temp files detected in changes
+// Only source file (src/lib/router.js) was modified
+// No .gitignore rules needed
+```

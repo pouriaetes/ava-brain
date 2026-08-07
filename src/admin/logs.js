@@ -15,19 +15,19 @@ export async function handleLogsPage(request, env, config) {
     <div class="card">
       <h2>Logs</h2>
       <form method="GET" action="/admin/ava_brain/logs">
-        <div class="row">
-          <div class="col">
+        <div class="row cols-3">
+          <div>
             <label>Level</label>
             <select name="level">
               <option value="">All</option>
               ${levels.map(l => `<option value="${l}" ${level === l ? "selected" : ""}>${l}</option>`).join("")}
             </select>
           </div>
-          <div class="col">
+          <div>
             <label>Event</label>
             <input type="text" name="event" value="${escHtml(event)}" placeholder="e.g., telegram_message">
           </div>
-          <div class="col">
+          <div>
             <label>Limit</label>
             <input type="number" name="limit" value="${limit}">
           </div>
@@ -37,10 +37,15 @@ export async function handleLogsPage(request, env, config) {
     </div>
 
     <div class="card">
+      ${logs.length === 0 ? '<p class="muted">No logs found matching the criteria.</p>' : ''}
       ${logs.map(log => `
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #333;">
-          <p><strong>${escHtml(log.created_at)}</strong> <span class="badge ${log.level === 'error' ? 'inactive' : 'active'}">${escHtml(log.level)}</span> ${escHtml(log.event)}</p>
-          <pre>${escHtml(log.metadata || "{}")}</pre>
+        <div style="padding:12px 0;border-bottom:1px solid var(--border-color);display:flex;align-items:flex-start;gap:12px;">
+          <span class="badge ${log.level === 'error' ? 'inactive' : log.level === 'warn' ? 'warning' : 'active'}" style="min-width:60px;text-align:center;">${escHtml(log.level)}</span>
+          <div style="flex:1;">
+            <p style="margin:0;"><strong>${escHtml(log.event)}</strong></p>
+            <p class="muted" style="margin:4px 0 0;font-size:0.8rem;">${escHtml(log.created_at)}</p>
+            ${log.metadata && log.metadata !== '{}' ? `<pre style="margin-top:8px;font-size:0.75rem;">${escHtml(log.metadata)}</pre>` : ""}
+          </div>
         </div>
       `).join("")}
     </div>

@@ -370,9 +370,14 @@ ${entryList}`;
 
     // Get short-term memory
     const shortTerm = await this.getShortTerm(chatId, 15);
-    if (shortTerm.length > 0) {
+    const REMINDER_KEYWORDS = ["remind", "reminder", "یادآور", "یاداور"];
+    const filteredShortTerm = shortTerm.filter((item) => {
+      const haystack = `${item.type || ""} ${item.content || ""}`.toLowerCase();
+      return !REMINDER_KEYWORDS.some((kw) => haystack.includes(kw));
+    });
+    if (filteredShortTerm.length > 0) {
       contextParts.push("Recent context (short-term):");
-      for (const item of shortTerm) {
+      for (const item of filteredShortTerm) {
         contextParts.push(`- ${item.type}: ${item.content}`);
       }
     }

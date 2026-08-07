@@ -40,10 +40,10 @@ export async function logToDb(db, level, event, metadata = {}) {
 function log3(db, level, event, meta) {
   return logToDb(db, level, event, meta);
 }
-log3.info = (db, event, meta) => logToDb(db, "info", event, meta);
-log3.error = (db, event, meta) => logToDb(db, "error", event, meta);
-log3.warn = (db, event, meta) => logToDb(db, "warn", event, meta);
-log3.debug = (db, event, meta) => logToDb(db, "debug", event, meta);
+log3.info = (db, component, event, meta) => logToDb(db, "info", `${component}:${event}`, meta);
+log3.error = (db, component, event, meta) => logToDb(db, "error", `${component}:${event}`, meta);
+log3.warn = (db, component, event, meta) => logToDb(db, "warn", `${component}:${event}`, meta);
+log3.debug = (db, component, event, meta) => logToDb(db, "debug", `${component}:${event}`, meta);
 
 // log3 is the primary export (callable function + methods)
 // log is the alias used by all other files importing { log }

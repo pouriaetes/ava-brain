@@ -265,6 +265,105 @@ export class AIProviderManager {
     throw new Error("All AI providers failed for followup");
   }
 
+  async generateImage(prompt, options = {}) {
+    if (!this.initialized) {
+      throw new Error("AI Provider Manager not initialized");
+    }
+    const suitableProviders = this.providers.filter((p) => {
+      const caps = JSON.parse(p.capabilities || "[]");
+      return caps.includes("image_gen") && p.enabled;
+    });
+    if (suitableProviders.length === 0) {
+      throw new Error("No suitable AI providers available for image generation");
+    }
+    const orderedProviders = suitableProviders.sort((a, b) => a.priority - b.priority);
+    for (const provider of orderedProviders) {
+      try {
+        const adapter = this.adapters[provider.id];
+        if (!adapter || typeof adapter.generateImage !== "function") continue;
+        const result = await this.withTimeout(
+          adapter.generateImage(prompt, options),
+          provider.timeout_ms || 6e4
+        );
+        await this.updateProviderHealth(provider.id, { status: "healthy", last_success: Date.now() });
+        return result;
+      } catch (error) {
+        await this.logger.error(this.db, "ai_provider_manager", "image_generation_error", {
+          provider: provider.name,
+          error: error.message
+        });
+        continue;
+      }
+    }
+    throw new Error("All AI providers failed for image generation");
+  }
+
+  async transcribeAudio(audioArrayBuffer, options = {}) {
+    if (!this.initialized) {
+      throw new Error("AI Provider Manager not initialized");
+    }
+    const suitableProviders = this.providers.filter((p) => {
+      const caps = JSON.parse(p.capabilities || "[]");
+      return caps.includes("stt") && p.enabled;
+    });
+    if (suitableProviders.length === 0) {
+      throw new Error("No suitable AI providers available for speech-to-text");
+    }
+    const orderedProviders = suitableProviders.sort((a, b) => a.priority - b.priority);
+    for (const provider of orderedProviders) {
+      try {
+        const adapter = this.adapters[provider.id];
+        if (!adapter || typeof adapter.transcribe !== "function") continue;
+        const result = await this.withTimeout(
+          adapter.transcribe(audioArrayBuffer, options),
+          provider.timeout_ms || 6e4
+        );
+        await this.updateProviderHealth(provider.id, { status: "healthy", last_success: Date.now() });
+        return result;
+      } catch (error) {
+        await this.logger.error(this.db, "ai_provider_manager", "transcription_error", {
+          provider: provider.name,
+          error: error.message
+        });
+        continue;
+      }
+    }
+    throw new Error("All AI providers failed for speech-to-text");
+  }
+
+  async textToSpeech(text, options = {}) {
+    if (!this.initialized) {
+      throw new Error("AI Provider Manager not initialized");
+    }
+    const suitableProviders = this.providers.filter((p) => {
+      const caps = JSON.parse(p.capabilities || "[]");
+      return caps.includes("tts") && p.enabled;
+    });
+    if (suitableProviders.length === 0) {
+      throw new Error("No suitable AI providers available for text-to-speech");
+    }
+    const orderedProviders = suitableProviders.sort((a, b) => a.priority - b.priority);
+    for (const provider of orderedProviders) {
+      try {
+        const adapter = this.adapters[provider.id];
+        if (!adapter || typeof adapter.speak !== "function") continue;
+        const result = await this.withTimeout(
+          adapter.speak(text, options),
+          provider.timeout_ms || 6e4
+        );
+        await this.updateProviderHealth(provider.id, { status: "healthy", last_success: Date.now() });
+        return result;
+      } catch (error) {
+        await this.logger.error(this.db, "ai_provider_manager", "tts_error", {
+          provider: provider.name,
+          error: error.message
+        });
+        continue;
+      }
+    }
+    throw new Error("All AI providers failed for text-to-speech");
+  }
+
   async getAllHealth() {
     const healthResults = {};
     for (const provider of this.providers) {

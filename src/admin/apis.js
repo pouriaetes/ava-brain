@@ -56,6 +56,9 @@ async function addProvider(db, formData, config) {
   if (formData.get("cap_chat")) selectedCapabilities.push("chat");
   if (formData.get("cap_routing")) selectedCapabilities.push("routing");
   if (formData.get("cap_memory_analysis")) selectedCapabilities.push("memory_analysis");
+  if (formData.get("cap_image_gen")) selectedCapabilities.push("image_gen");
+  if (formData.get("cap_stt")) selectedCapabilities.push("stt");
+  if (formData.get("cap_tts")) selectedCapabilities.push("tts");
   const capabilities = JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
 
   let apiKeyEnc = "";
@@ -87,6 +90,9 @@ async function editProvider(db, formData, config) {
   if (formData.get("cap_chat")) selectedCapabilities.push("chat");
   if (formData.get("cap_routing")) selectedCapabilities.push("routing");
   if (formData.get("cap_memory_analysis")) selectedCapabilities.push("memory_analysis");
+  if (formData.get("cap_image_gen")) selectedCapabilities.push("image_gen");
+  if (formData.get("cap_stt")) selectedCapabilities.push("stt");
+  if (formData.get("cap_tts")) selectedCapabilities.push("tts");
   const capabilities = JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
   const enabled = formData.get("enabled") === "on" ? 1 : 0;
 
@@ -171,9 +177,9 @@ function renderProvidersList(providers) {
       <h3>Add New Provider</h3>
       <form method="POST" action="/admin/ava_brain/apis">
         <input type="hidden" name="action" value="add">
-        <div class="row">
-          <div class="col"><label>Name</label><input type="text" name="name" required></div>
-          <div class="col"><label>Kind</label>
+        <div class="row cols-2">
+          <div><label>Name</label><input type="text" name="name" required></div>
+          <div><label>Kind</label>
             <select name="kind">
               <option value="workers_ai">Workers AI</option>
               <option value="gemini">Gemini</option>
@@ -184,24 +190,60 @@ function renderProvidersList(providers) {
         <label>Model</label><input type="text" name="model" required>
         <label>Base URL</label><input type="text" name="base_url" placeholder="https://api.example.com/v1">
         <label>API Key</label><input type="password" name="api_key" placeholder="••••••••">
-        <div class="row">
-          <div class="col"><label>Priority</label><input type="number" name="priority" value="10"></div>
-          <div class="col"><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="30000"></div>
-          <div class="col"><label>Max Retries</label><input type="number" name="max_retries" value="2"></div>
+        <div class="row cols-3">
+          <div><label>Priority</label><input type="number" name="priority" value="10"></div>
+          <div><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="30000"></div>
+          <div><label>Max Retries</label><input type="number" name="max_retries" value="2"></div>
         </div>
         <label>Capabilities (what this provider should be used for)</label>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
-          <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" checked> Chat (main conversation replies)</label>
-          <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing"> Routing (intent/action detection)</label>
-          <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis"> Memory Analysis (periodic short-term memory review)</label>
+        <div class="capability-group">
+          <h4 class="capability-group-title">Text / Chat</h4>
+          <div class="capability-group-items">
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" checked> Chat (main conversation replies)</label>
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing"> Routing (intent/action detection)</label>
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis"> Memory Analysis (periodic short-term memory review)</label>
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_image_gen" value="image_gen"> Image Generation (generate images from text prompts)</label>
+          </div>
         </div>
-        <button type="submit">Add Provider</button>
+        <div class="capability-group">
+          <h4 class="capability-group-title">Voice (STT / TTS)</h4>
+          <div class="capability-group-items">
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_stt" value="stt"> Speech-to-Text (transcribe incoming voice messages)</label>
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_tts" value="tts"> Text-to-Speech (generate voice replies)</label>
+          </div>
+        </div>
+        <div class="capability-group capability-group-future">
+          <h4 class="capability-group-title">Image Generation</h4>
+          <div class="capability-group-items">
+            <label class="disabled-capability">
+              <input type="checkbox" name="capabilities" value="image_gen" disabled>
+              Generate Images
+            </label>
+          </div>
+          <p class="muted" style="font-size:0.75rem;margin-top:8px;">Coming soon — not yet supported by the backend.</p>
+        </div>
+        <div class="capability-group capability-group-future">
+          <h4 class="capability-group-title">Web Search</h4>
+          <div class="capability-group-items">
+            <label class="disabled-capability">
+              <input type="checkbox" name="capabilities" value="web_search" disabled>
+              Search the Web
+            </label>
+          </div>
+          <p class="muted" style="font-size:0.75rem;margin-top:8px;">Coming soon — not yet supported by the backend.</p>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:8px;">
+          <button type="submit">Add Provider</button>
+          <button type="button" class="secondary" onclick="document.getElementById('add-provider-card').style.display='none'; document.getElementById('add-provider-btn').style.display='inline-flex';">Cancel</button>
+        </div>
       </form>
     </div>
 
     <!-- Button to show Add New Provider form -->
-    <div class="card" style="text-align:center;">
-      <button type="button" class="btn success" onclick="document.getElementById('add-provider-card').style.display='block'; this.style.display='none';">+ Add New Provider</button>
+    <div id="add-provider-btn" style="margin-bottom:20px;">
+      <button type="button" class="success" onclick="this.style.display='none'; document.getElementById('add-provider-card').style.display='block';">
+        + Add New Provider
+      </button>
     </div>
   `;
 
@@ -210,18 +252,26 @@ function renderProvidersList(providers) {
     const caps = JSON.parse(provider.capabilities || "[]");
     const healthStatus = health.status || "unknown";
     const healthBadgeClass = healthStatus === "healthy" ? "active" : (healthStatus === "unhealthy" ? "inactive" : "warning");
-    
+
     html += `
-      <div class="card provider-card">
+      <div class="card provider-card ${provider.enabled ? 'enabled' : 'disabled'}">
         <!-- Collapsed Summary View -->
-        <div class="provider-summary" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <h3 style="margin:0;">${escHtml(provider.name)}</h3>
-            <span class="badge ${provider.enabled ? "active" : "inactive"}">${provider.enabled ? "Enabled" : "Disabled"}</span>
-            <span class="badge ${healthBadgeClass}">${escHtml(healthStatus)}</span>
+        <div id="provider-summary-${provider.id}" class="provider-summary">
+          <div class="provider-info">
+            <div class="provider-header">
+              <span class="provider-name">${escHtml(provider.name)}</span>
+              <span class="badge ${provider.enabled ? "active" : "inactive"}">${provider.enabled ? "Enabled" : "Disabled"}</span>
+              <span class="badge ${healthBadgeClass}">${escHtml(healthStatus)}</span>
+            </div>
+            <div class="provider-meta">
+              <span class="provider-meta-item">${escHtml(provider.kind)}</span>
+              <span class="provider-meta-separator">·</span>
+              <span class="provider-meta-item">Model: ${escHtml(provider.model)}</span>
+              <span class="provider-meta-separator">·</span>
+              <span class="provider-meta-item">Priority: ${provider.priority}</span>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <span class="muted" style="font-size:0.85rem;">${escHtml(provider.kind)} | Model: ${escHtml(provider.model)} | Priority: ${provider.priority}</span>
+          <div class="provider-actions">
             <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
               <input type="hidden" name="action" value="toggle">
               <input type="hidden" name="id" value="${provider.id}">
@@ -232,7 +282,7 @@ function renderProvidersList(providers) {
               <input type="hidden" name="id" value="${provider.id}">
               <button type="submit" class="small">Test</button>
             </form>
-            <button type="button" class="small" onclick="document.getElementById('provider-edit-${provider.id}').style.display='block'; document.getElementById('provider-summary-${provider.id}').style.display='none';">Edit</button>
+            <button type="button" class="small secondary" onclick="document.getElementById('provider-edit-${provider.id}').style.display='block'; document.getElementById('provider-summary-${provider.id}').style.display='none';">Edit</button>
             <form method="POST" action="/admin/ava_brain/apis" style="display:inline">
               <input type="hidden" name="action" value="delete">
               <input type="hidden" name="id" value="${provider.id}">
@@ -242,13 +292,13 @@ function renderProvidersList(providers) {
         </div>
 
         <!-- Expanded Edit Form (hidden by default) -->
-        <div id="provider-edit-${provider.id}" class="provider-edit-form" style="display:none;margin-top:16px;border-top:1px solid var(--border-color);padding-top:16px;">
+        <div id="provider-edit-${provider.id}" class="provider-edit-form" style="display:none;">
           <form method="POST" action="/admin/ava_brain/apis">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" value="${provider.id}">
-            <div class="row">
-              <div class="col"><label>Name</label><input type="text" name="name" value="${escHtml(provider.name)}"></div>
-              <div class="col"><label>Kind</label>
+            <div class="row cols-2">
+              <div><label>Name</label><input type="text" name="name" value="${escHtml(provider.name)}"></div>
+              <div><label>Kind</label>
                 <select name="kind">
                   <option value="workers_ai" ${provider.kind === "workers_ai" ? "selected" : ""}>Workers AI</option>
                   <option value="gemini" ${provider.kind === "gemini" ? "selected" : ""}>Gemini</option>
@@ -261,19 +311,50 @@ function renderProvidersList(providers) {
               <label>Base URL</label><input type="text" name="base_url" value="${escHtml(provider.base_url || "")}" placeholder="https://api.example.com/v1">
               <label>API Key (leave blank to keep existing)</label><input type="password" name="api_key" placeholder="••••••••">
             ` : ""}
-            <div class="row">
-              <div class="col"><label>Priority</label><input type="number" name="priority" value="${provider.priority}"></div>
-              <div class="col"><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="${provider.timeout_ms}"></div>
-              <div class="col"><label>Max Retries</label><input type="number" name="max_retries" value="${provider.max_retries}"></div>
+            <div class="row cols-3">
+              <div><label>Priority</label><input type="number" name="priority" value="${provider.priority}"></div>
+              <div><label>Timeout (ms)</label><input type="number" name="timeout_ms" value="${provider.timeout_ms}"></div>
+              <div><label>Max Retries</label><input type="number" name="max_retries" value="${provider.max_retries}"></div>
             </div>
             <label>Capabilities (what this provider should be used for)</label>
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;">
-              <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" ${caps.includes("chat") ? "checked" : ""}> Chat (main conversation replies)</label>
-              <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing" ${caps.includes("routing") ? "checked" : ""}> Routing (intent/action detection)</label>
-              <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis" ${caps.includes("memory_analysis") ? "checked" : ""}> Memory Analysis (periodic short-term memory review)</label>
+            <div class="capability-group">
+              <h4 class="capability-group-title">Text / Chat</h4>
+              <div class="capability-group-items">
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" ${caps.includes("chat") ? "checked" : ""}> Chat (main conversation replies)</label>
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing" ${caps.includes("routing") ? "checked" : ""}> Routing (intent/action detection)</label>
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis" ${caps.includes("memory_analysis") ? "checked" : ""}> Memory Analysis (periodic short-term memory review)</label>
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_image_gen" value="image_gen" ${caps.includes("image_gen") ? "checked" : ""}> Image Generation (generate images from text prompts)</label>
+              </div>
+            </div>
+            <div class="capability-group">
+              <h4 class="capability-group-title">Voice (STT / TTS)</h4>
+              <div class="capability-group-items">
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_stt" value="stt" ${caps.includes("stt") ? "checked" : ""}> Speech-to-Text (transcribe incoming voice messages)</label>
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_tts" value="tts" ${caps.includes("tts") ? "checked" : ""}> Text-to-Speech (generate voice replies)</label>
+              </div>
+            </div>
+            <div class="capability-group capability-group-future">
+              <h4 class="capability-group-title">Image Generation</h4>
+              <div class="capability-group-items">
+                <label class="disabled-capability">
+                  <input type="checkbox" name="capabilities" value="image_gen" disabled>
+                  Generate Images
+                </label>
+              </div>
+              <p class="muted" style="font-size:0.75rem;margin-top:8px;">Coming soon — not yet supported by the backend.</p>
+            </div>
+            <div class="capability-group capability-group-future">
+              <h4 class="capability-group-title">Web Search</h4>
+              <div class="capability-group-items">
+                <label class="disabled-capability">
+                  <input type="checkbox" name="capabilities" value="web_search" disabled>
+                  Search the Web
+                </label>
+              </div>
+              <p class="muted" style="font-size:0.75rem;margin-top:8px;">Coming soon — not yet supported by the backend.</p>
             </div>
             <label><input type="checkbox" name="enabled" ${provider.enabled ? "checked" : ""}> Enabled</label>
-            <div style="margin-top:12px;display:flex;gap:8px;">
+            <div style="margin-top:16px;display:flex;gap:8px;">
               <button type="submit">Update Provider</button>
               <button type="button" class="secondary" onclick="document.getElementById('provider-edit-${provider.id}').style.display='none'; document.getElementById('provider-summary-${provider.id}').style.display='flex';">Cancel</button>
             </div>

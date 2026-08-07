@@ -115,6 +115,82 @@ export class WorkersAIAdapter {
       };
     }
   }
+  async generateImage(prompt, options = {}) {
+    if (!this.ai) {
+      throw new Error('Workers AI binding not available. Ensure [ai] binding = "AI" exists in wrangler.toml');
+    }
+    try {
+      const result = await this.ai.run(this.model, { prompt });
+      let imageBase64 = "";
+      if (result && typeof result.image === "string") {
+        imageBase64 = result.image;
+      } else if (result instanceof ArrayBuffer) {
+        imageBase64 = btoa(String.fromCharCode(...new Uint8Array(result)));
+      } else if (result instanceof Uint8Array) {
+        imageBase64 = btoa(String.fromCharCode(...result));
+      } else if (result && typeof result.response === "string") {
+        imageBase64 = result.response;
+      }
+      if (!imageBase64) {
+        throw new Error("Workers AI image model returned an unrecognized response shape");
+      }
+      return {
+        image_base64: imageBase64,
+        provider: "workers_ai",
+        model: this.model
+      };
+    } catch (error) {
+      if (this.logger?.error) this.logger.error(this.config.db, "ai_providers", "workers_ai_image_error", { error: error.message });
+      throw error;
+    }
+  }
+  async transcribe(audioArrayBuffer, options = {}) {
+    if (!this.ai) {
+      throw new Error('Workers AI binding not available. Ensure [ai] binding = "AI" exists in wrangler.toml');
+    }
+    try {
+      const audioArray = Array.from(new Uint8Array(audioArrayBuffer));
+      const result = await this.ai.run(this.model, { audio: audioArray });
+      const text = result?.text || result?.response || "";
+      return {
+        text,
+        provider: "workers_ai",
+        model: this.model
+      };
+    } catch (error) {
+      if (this.logger?.error) this.logger.error(this.config.db, "ai_providers", "workers_ai_stt_error", { error: error.message });
+      throw error;
+    }
+  }
+  async speak(text, options = {}) {
+    if (!this.ai) {
+      throw new Error('Workers AI binding not available. Ensure [ai] binding = "AI" exists in wrangler.toml');
+    }
+    try {
+      const result = await this.ai.run(this.model, { prompt: text, lang: options.lang || "en" });
+      let audioBase64 = "";
+      if (result && typeof result.audio === "string") {
+        audioBase64 = result.audio;
+      } else if (result instanceof ArrayBuffer) {
+        audioBase64 = btoa(String.fromCharCode(...new Uint8Array(result)));
+      } else if (result instanceof Uint8Array) {
+        audioBase64 = btoa(String.fromCharCode(...result));
+      } else if (result && typeof result.response === "string") {
+        audioBase64 = result.response;
+      }
+      if (!audioBase64) {
+        throw new Error("Workers AI TTS model returned an unrecognized response shape");
+      }
+      return {
+        audio_base64: audioBase64,
+        provider: "workers_ai",
+        model: this.model
+      };
+    } catch (error) {
+      if (this.logger?.error) this.logger.error(this.config.db, "ai_providers", "workers_ai_tts_error", { error: error.message });
+      throw error;
+    }
+  }
 }
 
 export class GeminiAdapter {

@@ -63,36 +63,43 @@ async function renderTasksPage(db, routineManager, message, error) {
 
       return `
         <div class="card">
-          <h3>${escHtml(routine.name)} <span class="badge ${isEnabled ? "active" : "inactive"}">${isEnabled ? "Enabled" : isDraft ? "Draft" : "Disabled"}</span></h3>
-          <p class="muted">Type: ${routine.action_type} | Schedule: ${routine.schedule_type} | Next run: ${routine.next_run_utc || "Not scheduled"}</p>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+            <div>
+              <h3 style="margin:0 0 8px;">${escHtml(routine.name)}</h3>
+              <span class="badge ${isEnabled ? "active" : isDraft ? "warning" : "inactive"}">${isEnabled ? "Enabled" : isDraft ? "Draft" : "Disabled"}</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <form method="POST" action="/admin/ava_brain/tasks" style="display:inline">
+                <input type="hidden" name="action" value="toggle">
+                <input type="hidden" name="id" value="${routine.id}">
+                <button type="submit" class="small ${isEnabled ? "secondary" : "success"}">${isEnabled ? "Disable" : "Enable"}</button>
+              </form>
+
+              ${isDraft ? `
+                <form method="POST" action="/admin/ava_brain/tasks" style="display:inline">
+                  <input type="hidden" name="action" value="confirm">
+                  <input type="hidden" name="id" value="${routine.id}">
+                  <button type="submit" class="small">Confirm</button>
+                </form>
+              ` : ""}
+
+              <form method="POST" action="/admin/ava_brain/tasks" style="display:inline">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="id" value="${routine.id}">
+                <button type="submit" class="small danger" onclick="return confirm('Delete this routine?')">Delete</button>
+              </form>
+            </div>
+          </div>
+
+          <p class="muted" style="margin-top:12px;">Type: ${routine.action_type} | Schedule: ${routine.schedule_type} | Next run: ${routine.next_run_utc || "Not scheduled"}</p>
           <p class="muted">Last run: ${routine.last_run_at || "Never"} | Local time: ${routine.local_time || "-"}</p>
 
-          <form method="POST" action="/admin/ava_brain/tasks" style="display:inline">
-            <input type="hidden" name="action" value="toggle">
-            <input type="hidden" name="id" value="${routine.id}">
-            <button type="submit" class="small">${isEnabled ? "Disable" : "Enable"}</button>
-          </form>
-
-          ${isDraft ? `
-            <form method="POST" action="/admin/ava_brain/tasks" style="display:inline">
-              <input type="hidden" name="action" value="confirm">
-              <input type="hidden" name="id" value="${routine.id}">
-              <button type="submit" class="small">Confirm</button>
-            </form>
-          ` : ""}
-
-          <form method="POST" action="/admin/ava_brain/tasks" style="display:inline">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="id" value="${routine.id}">
-            <button type="submit" class="small danger" onclick="return confirm('Delete this routine?')">Delete</button>
-          </form>
-
-          <form method="POST" action="/admin/ava_brain/tasks" style="margin-top:12px">
+          <form method="POST" action="/admin/ava_brain/tasks" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" value="${routine.id}">
-            <div class="row">
-              <div class="col"><label>Name</label><input type="text" name="name" value="${escHtml(routine.name)}"></div>
-              <div class="col"><label>Action Type</label>
+            <div class="row cols-2">
+              <div><label>Name</label><input type="text" name="name" value="${escHtml(routine.name)}"></div>
+              <div><label>Action Type</label>
                 <select name="action_type">
                   ${["news_ai", "custom_message", "project_followup", "checkin", "summary", "other"].map(t => `<option value="${t}" ${routine.action_type === t ? "selected" : ""}>${t}</option>`).join("")}
                 </select>

@@ -49,6 +49,76 @@ export async function sendTelegramMessage(config, chatId, text, options = {}) {
   return results;
 }
 
+export async function downloadTelegramFile(config, fileId) {
+  const { TELEGRAM_BOT_TOKEN } = config;
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw new Error("TELEGRAM_BOT_TOKEN not configured");
+  }
+  const getFileUrl = `${TELEGRAM_API}${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`;
+  const getFileResponse = await fetch(getFileUrl);
+  if (!getFileResponse.ok) {
+    const errorText = await getFileResponse.text();
+    throw new Error(`Telegram getFile error: ${getFileResponse.status} ${errorText}`);
+  }
+  const getFileData = await getFileResponse.json();
+  const filePath = getFileData?.result?.file_path;
+  if (!filePath) {
+    throw new Error("Telegram getFile did not return a file_path");
+  }
+  const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${filePath}`;
+  const fileResponse = await fetch(fileUrl);
+  if (!fileResponse.ok) {
+    throw new Error(`Telegram file download error: ${fileResponse.status}`);
+  }
+  return await fileResponse.arrayBuffer();
+}
+
+export async function sendTelegramPhoto(config, chatId, imageBase64, caption = "") {
+  const { TELEGRAM_BOT_TOKEN } = config;
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw new Error("TELEGRAM_BOT_TOKEN not configured");
+  }
+  const binaryString = atob(imageBase64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const formData = new FormData();
+  formData.append("chat_id", chatId);
+  if (caption) formData.append("caption", caption);
+  formData.append("photo", new Blob([bytes], { type: "image/png" }), "image.png");
+  const url = `${TELEGRAM_API}${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+  const response = await fetch(url, { method: "POST", body: formData });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Telegram sendPhoto error: ${response.status} ${errorText}`);
+  }
+  return await response.json();
+}
+
+export async function sendTelegramAudio(config, chatId, audioBase64, caption = "") {
+  const { TELEGRAM_BOT_TOKEN } = config;
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw new Error("TELEGRAM_BOT_TOKEN not configured");
+  }
+  const binaryString = atob(audioBase64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const formData = new FormData();
+  formData.append("chat_id", chatId);
+  if (caption) formData.append("caption", caption);
+  formData.append("audio", new Blob([bytes], { type: "audio/mpeg" }), "voice.mp3");
+  const url = `${TELEGRAM_API}${TELEGRAM_BOT_TOKEN}/sendAudio`;
+  const response = await fetch(url, { method: "POST", body: formData });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Telegram sendAudio error: ${response.status} ${errorText}`);
+  }
+  return await response.json();
+}
+
 export async function sendTypingAction(config, chatId) {
   const { TELEGRAM_BOT_TOKEN } = config;
   if (!TELEGRAM_BOT_TOKEN) return;

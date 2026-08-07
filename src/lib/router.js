@@ -32,6 +32,8 @@ Allowed intents:
 - delete_request
 - admin_help
 - followup_response
+- image_request
+- voice_reply_request
 
 Allowed actions:
 - create_reminder
@@ -149,6 +151,32 @@ export class Router {
       }
     }
 
+    if (text.includes("با صدا جواب بده") || text.includes("جواب صوتی") || text.includes("ویس بده") || text.includes("ویس جواب") || text.includes("voice reply") || text.includes("reply with voice") || text.includes("answer with voice") || text.includes("send voice")) {
+      return {
+        intent: "voice_reply_request",
+        confidence: 0.6,
+        language: /[؀-ۿ]/.test(text) ? "fa" : "en",
+        needs_user_confirmation: false,
+        missing_fields: [],
+        tables_to_read: [],
+        actions: [],
+        memory_to_save: [],
+        response_hint: ""
+      };
+    }
+    if (text.includes("عکس بساز") || text.includes("تصویر بساز") || text.includes("عکس بکش") || text.includes("نقاشی بکش") || text.includes("generate image") || text.includes("create an image") || text.includes("draw me") || text.includes("draw a")) {
+      return {
+        intent: "image_request",
+        confidence: 0.7,
+        language: /[؀-ۿ]/.test(text) ? "fa" : "en",
+        needs_user_confirmation: false,
+        missing_fields: [],
+        tables_to_read: [],
+        actions: [],
+        memory_to_save: [],
+        response_hint: ""
+      };
+    }
     if (text.includes("help") || text.includes("/help")) {
       return {
         intent: "admin_help",

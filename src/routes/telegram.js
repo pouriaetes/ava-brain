@@ -1,7 +1,7 @@
 // Telegram webhook handler — owner-only, secret verification, typing, routing
 import { getSession } from "../lib/auth.js";
 import { log } from "../lib/logger.js";
-import { sendTelegramMessage, sendTypingAction } from "../lib/telegram.js";
+import { sendTelegramMessage, sendTypingAction, downloadTelegramFile, sendTelegramAudio } from "../lib/telegram.js";
 import { routeIntent } from "../lib/router.js";
 import { executeAction } from "../lib/validator.js";
 import { MemoryManager } from "../lib/memory.js";
@@ -61,6 +61,32 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
 
     // 3. Typing indicator
     await sendTypingAction(config, chatId);
+
+    // 3.5. Voice message transcription
+    let isVoiceInput = false;
+    if (message.voice && message.voice.file_id) {
+      try {
+        const audioBuffer = await downloadTelegramFile(config, message.voice.file_id);
+        const aiManagerStt = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+        await aiManagerStt.initialize();
+        const transcription = await aiManagerStt.transcribeAudio(audioBuffer, { capabilities: ["stt"] });
+        if (transcription?.text) {
+          message.text = transcription.text;
+          isVoiceInput = true;
+        } else {
+          await sendTelegramMessage(config, chatId, "Sorry, I couldn't understand the voice message.");
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+      } catch (voiceError) {
+        await log(env.DB, "warn", "voice_transcription_failed", { error: voiceError.message });
+        await sendTelegramMessage(config, chatId, "Sorry, I couldn't process that voice message right now.");
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
 
     // 4. Get or create session
     const sessionManager = new SessionManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
@@ -155,7 +181,7 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     let responseText;
     if (routing.response_hint) {
       responseText = routing.response_hint;
-    } else if (routing.intent === "general_chat") {
+    } else if (routing.intent === "general_chat" || routing.intent === "voice_reply_request") {
       // Try AI response
       try {
         const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
@@ -174,6 +200,22 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
         responseText = "AI model connection is currently having issues, I saved your message.";
         await memoryManager.saveShortTerm(chatId, "pending_message", message.text || "", 2, {});
       }
+    } else if (routing.intent === "image_request") {
+      try {
+        const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+        await aiManager.initialize();
+        const imageResult = await aiManager.generateImage(message.text || "", { capabilities: ["image_gen"] });
+        if (imageResult?.image_base64) {
+          const { sendTelegramPhoto } = await import("../lib/telegram.js");
+          await sendTelegramPhoto(config, chatId, imageResult.image_base64, "");
+          responseText = "\u{1F3A8}";
+        } else {
+          responseText = "Sorry, I couldn't generate that image right now.";
+        }
+      } catch (imageError) {
+        responseText = "Image generation is currently having issues, please try again later.";
+        await log(env.DB, "warn", "image_generation_failed", { error: imageError.message });
+      }
     } else if (actionResults.some(r => r?.success)) {
       responseText = "Done.";
     } else {
@@ -182,7 +224,24 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
 
     // 11. Send response
     if (responseText) {
-      const results = await sendTelegramMessage(config, chatId, responseText, { parse_mode: "HTML" });
+      const wantsVoiceReply = isVoiceInput || routing.intent === "voice_reply_request";
+      if (wantsVoiceReply && routing.intent !== "image_request") {
+        try {
+          const aiManagerTts = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+          await aiManagerTts.initialize();
+          const speechResult = await aiManagerTts.textToSpeech(responseText, { capabilities: ["tts"] });
+          if (speechResult?.audio_base64) {
+            await sendTelegramAudio(config, chatId, speechResult.audio_base64, "");
+          } else {
+            await sendTelegramMessage(config, chatId, responseText, { parse_mode: "HTML" });
+          }
+        } catch (ttsError) {
+          await log(env.DB, "warn", "tts_failed", { error: ttsError.message });
+          await sendTelegramMessage(config, chatId, responseText, { parse_mode: "HTML" });
+        }
+      } else {
+        await sendTelegramMessage(config, chatId, responseText, { parse_mode: "HTML" });
+      }
 
       // 12. Update session summary
       if (session?.id) {

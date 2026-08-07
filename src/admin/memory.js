@@ -53,7 +53,7 @@ async function renderMemoryPage(db, message, error) {
 
     <div class="card">
       <h2>Short-term Memory</h2>
-      <p>Entries: <strong>${shortTermCount.count || 0}</strong></p>
+      <p class="muted" style="margin-bottom:16px;">Entries: <strong>${shortTermCount.count || 0}</strong></p>
       <form method="POST" action="/admin/ava_brain/memory">
         <input type="hidden" name="action" value="clear_short_term">
         <button type="submit" class="danger" onclick="return confirm('Clear all short-term memory?')">Clear All</button>
@@ -62,44 +62,46 @@ async function renderMemoryPage(db, message, error) {
 
     <div class="card">
       <h2>Profile Facts</h2>
-      <p class="muted" style="margin-bottom:12px;">These facts are normally learned and saved automatically by Ava during conversations. Manually adding or editing a fact here should only be needed occasionally, for corrections or facts you want to set directly.</p>
+      <p class="muted" style="margin-bottom:16px;">These facts are normally learned and saved automatically by Ava during conversations. Manually adding or editing a fact here should only be needed occasionally, for corrections or facts you want to set directly.</p>
       <details>
-        <summary style="cursor:pointer;">+ Add Fact Manually</summary>
-        <form method="POST" action="/admin/ava_brain/memory" style="margin-top:12px;">
+        <summary style="cursor:pointer;font-weight:500;color:var(--text-secondary);">Add Fact Manually</summary>
+        <form method="POST" action="/admin/ava_brain/memory" style="margin-top:16px;">
           <input type="hidden" name="action" value="add_fact">
-          <div class="row">
-            <div class="col"><label>Category</label><input type="text" name="category" required placeholder="e.g., preference"></div>
-            <div class="col"><label>Key</label><input type="text" name="fact_key" required placeholder="e.g., favorite_coffee"></div>
+          <div class="row cols-2">
+            <div><label>Category</label><input type="text" name="category" required placeholder="e.g., preference"></div>
+            <div><label>Key</label><input type="text" name="fact_key" required placeholder="e.g., favorite_coffee"></div>
           </div>
           <label>Value</label><input type="text" name="fact_value" required placeholder="e.g., Espresso">
-          <div class="row">
-            <div class="col"><label>Confidence (0-1)</label><input type="number" step="0.1" min="0" max="1" name="confidence" value="0.8"></div>
-            <div class="col"><label>Source</label><input type="text" name="source" placeholder="e.g., conversation"></div>
+          <div class="row cols-2">
+            <div><label>Confidence (0-1)</label><input type="number" step="0.1" min="0" max="1" name="confidence" value="0.8"></div>
+            <div><label>Source</label><input type="text" name="source" placeholder="e.g., conversation"></div>
           </div>
           <label><input type="checkbox" name="is_permanent" checked> Permanent</label>
           <button type="submit">Add Fact</button>
         </form>
       </details>
 
-      <div style="margin-top:16px;">
+      <div style="margin-top:20px;">
         ${(profileFacts.results || []).map(fact => `
-          <details style="margin-top:8px;padding:8px;border:1px solid #333;border-radius:6px;">
-            <summary style="cursor:pointer;"><strong>${escHtml(fact.fact_key)}</strong> <span class="muted">(${escHtml(fact.category)}): ${escHtml(fact.fact_value)}</span></summary>
-            <form method="POST" action="/admin/ava_brain/memory" style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
+          <details style="margin-top:8px;padding:12px;border:1px solid var(--border-color);border-radius:var(--radius-md);background:var(--bg-secondary);">
+            <summary style="cursor:pointer;font-weight:500;"><strong>${escHtml(fact.fact_key)}</strong> <span class="muted">(${escHtml(fact.category)}): ${escHtml(fact.fact_value)}</span></summary>
+            <form method="POST" action="/admin/ava_brain/memory" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
               <input type="hidden" name="action" value="edit_fact">
               <input type="hidden" name="id" value="${fact.id}">
-              <div class="row">
-                <div class="col"><input type="text" name="category" value="${escHtml(fact.category)}"></div>
-                <div class="col"><input type="text" name="fact_key" value="${escHtml(fact.fact_key)}"></div>
+              <div class="row cols-2">
+                <div><input type="text" name="category" value="${escHtml(fact.category)}"></div>
+                <div><input type="text" name="fact_key" value="${escHtml(fact.fact_key)}"></div>
               </div>
               <input type="text" name="fact_value" value="${escHtml(fact.fact_value)}">
-              <div class="row">
-                <div class="col"><input type="number" step="0.1" min="0" max="1" name="confidence" value="${fact.confidence}"></div>
-                <div class="col"><input type="text" name="source" value="${escHtml(fact.source || "")}"></div>
+              <div class="row cols-2">
+                <div><input type="number" step="0.1" min="0" max="1" name="confidence" value="${fact.confidence}"></div>
+                <div><input type="text" name="source" value="${escHtml(fact.source || "")}"></div>
               </div>
               <label><input type="checkbox" name="is_permanent" ${fact.is_permanent ? "checked" : ""}> Permanent</label>
-              <button type="submit">Update</button>
-              <button type="submit" name="action" value="delete_fact" class="danger small" onclick="return confirm('Delete this fact?')">Delete</button>
+              <div style="display:flex;gap:8px;">
+                <button type="submit">Update</button>
+                <button type="submit" name="action" value="delete_fact" class="danger small" onclick="return confirm('Delete this fact?')">Delete</button>
+              </div>
             </form>
           </details>
         `).join("")}
@@ -108,16 +110,16 @@ async function renderMemoryPage(db, message, error) {
 
     <div class="card">
       <details>
-        <summary style="cursor:pointer;"><h2 style="display:inline;">Long-term Memory (${(longTerm.results || []).length})</h2></summary>
-        <div style="margin-top:12px;">
+        <summary style="cursor:pointer;"><h2 style="display:inline;margin:0;">Long-term Memory (${(longTerm.results || []).length})</h2></summary>
+        <div style="margin-top:16px;">
           ${(longTerm.results || []).map(item => `
-            <details style="margin-top:8px;padding:8px;border:1px solid #333;border-radius:6px;">
-              <summary style="cursor:pointer;">
+            <details style="margin-top:8px;padding:12px;border:1px solid var(--border-color);border-radius:var(--radius-md);background:var(--bg-secondary);">
+              <summary style="cursor:pointer;font-weight:500;">
                 <strong>${escHtml(item.title)}</strong> <span class="muted">(${escHtml(item.type)})</span>
               </summary>
-              <div style="margin-top:8px;padding-top:8px;border-top:1px solid #333;">
+              <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
                 <p>${escHtml(item.content)}</p>
-                <p class="muted">Tags: ${escHtml(item.tags || "[]")} | Accessed: ${item.access_count} times</p>
+                <p class="muted" style="margin-top:8px;">Tags: ${escHtml(item.tags || "[]")} | Accessed: ${item.access_count} times</p>
                 <form method="POST" action="/admin/ava_brain/memory" style="display:inline">
                   <input type="hidden" name="action" value="delete_long_term">
                   <input type="hidden" name="id" value="${item.id}">

@@ -12,6 +12,172 @@ import { SessionManager } from "../lib/sessions.js";
 import { AIProviderManager } from "../lib/ai.js";
 import { encrypt, decrypt } from "../lib/crypto.js";
 
+function toEnglishDigits(input) {
+  return String(input || "")
+    .replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)))
+    .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)));
+}
+
+function looksLikeReminderFollowUp(text) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (t.startsWith("/")) return false;
+
+  return /(ساعت|صبح|بعد\s*از\s*ظهر|عصر|شب|ظهر|امروز|فردا|پس\s*فردا|پس‌فردا|هر\s*روز|هر\s*هفته|هر\s*شب|هر\s*ماه|یادآوری|یاد\s*آوری|یاد\s*اوری|یادم\s*بنداز|یادت\s*باشه|یادت\s*نره|\d{1,2}:\d{2}|[۰-۹]{1,2}[:：][۰-۹]{2})/i.test(t);
+}
+
+async function saveReminderDraft(env, chatId, content) {
+  try {
+    const safeContent = String(content || "").substring(0, 1500);
+    if (!chatId || !safeContent) return;
+
+    await env.DB.prepare(
+      "DELETE FROM memory_short_term WHERE session_id = ? AND type = 'reminder_draft'"
+    ).bind(chatId).run();
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    await env.DB.prepare(
+      "INSERT INTO memory_short_term (session_id, type, content, importance, metadata, expires_at) VALUES (?, 'reminder_draft', ?, 3, '{}', ?)"
+    ).bind(chatId, safeContent, expiresAt).run();
+  } catch (error) {
+    try {
+      console.warn("saveReminderDraft failed:", error.message);
+    } catch {}
+  }
+}
+
+async function clearReminderDraft(env, chatId) {
+  try {
+    if (!chatId) return;
+
+    await env.DB.prepare(
+      "DELETE FROM memory_short_term WHERE session_id = ? AND type = 'reminder_draft'"
+    ).bind(chatId).run();
+  } catch (error) {
+    try {
+      console.warn("clearReminderDraft failed:", error.message);
+    } catch {}
+  }
+}
+
+function deterministicReminderExtract(text) {
+  try {
+    const original = String(text || "").replace(/\s+/g, " ").trim();
+    const normalized = toEnglishDigits(original).toLowerCase();
+
+    const offsetMs = 3.5 * 60 * 60 * 1000;
+    const tehranNow = new Date(Date.now() + offsetMs);
+
+    const hasDaily = /(هر\s*روز|روزانه|every\s*day)/i.test(normalized);
+    const hasWeekly = /(هر\s*هفته|هفتگی|every\s*week)/i.test(normalized);
+    const hasTomorrow = /(فردا|tomorrow)/i.test(normalized);
+
+    let hour = null;
+    let minute = 0;
+
+    const colonMatch = normalized.match(/(\d{1,2})[:：](\d{2})/);
+    if (colonMatch) {
+      hour = parseInt(colonMatch[1], 10);
+      minute = parseInt(colonMatch[2], 10);
+    } else {
+      const hourMatch =
+        normalized.match(/ساعت\s*(\d{1,2})/) ||
+        normalized.match(/(\d{1,2})\s*(بعد\s*از\s*ظهر|عصر|شب|صبح|ظهر)/);
+
+      if (hourMatch) {
+        hour = parseInt(hourMatch[1], 10);
+      }
+    }
+
+    if (hour === null || isNaN(hour)) {
+      return { success: false, needsInput: true };
+    }
+
+    const hasPm = /(بعد\s*از\s*ظهر|عصر|شب)/i.test(normalized);
+    const hasAm = /(صبح)/i.test(normalized);
+
+    if (!hasPm && !hasAm && hour < 12 && tehranNow.getUTCHours() >= hour) {
+      hour += 12;
+    }
+
+    if (hasPm && hour < 12) hour += 12;
+    if (hasAm && hour === 12) hour = 0;
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return { success: false, needsInput: true };
+    }
+
+    let schedule_type = "once";
+    if (hasDaily) {
+      schedule_type = "daily";
+    } else if (
+      hasWeekly ||
+      /(شنبه|یکشنبه|دوشنبه|سه\s*شنبه|سه‌شنبه|چهارشنبه|پنج\s*شنبه|پنج‌شنبه|جمعه)/i.test(normalized)
+    ) {
+      schedule_type = "weekly";
+    }
+
+    const targetTehran = new Date(
+      Date.UTC(
+        tehranNow.getUTCFullYear(),
+        tehranNow.getUTCMonth(),
+        tehranNow.getUTCDate(),
+        hour,
+        minute,
+        0,
+        0
+      )
+    );
+
+    if (hasTomorrow) {
+      targetTehran.setUTCDate(targetTehran.getUTCDate() + 1);
+    }
+
+    if (schedule_type === "weekly") {
+      let targetDay = null;
+
+      if (/یکشنبه/i.test(normalized)) targetDay = 0;
+      else if (/دوشنبه/i.test(normalized)) targetDay = 1;
+      else if (/سه\s*شنبه|سه‌شنبه/i.test(normalized)) targetDay = 2;
+      else if (/چهارشنبه/i.test(normalized)) targetDay = 3;
+      else if (/پنج\s*شنبه|پنج‌شنبه/i.test(normalized)) targetDay = 4;
+      else if (/جمعه/i.test(normalized)) targetDay = 5;
+      else if (/شنبه/i.test(normalized)) targetDay = 6;
+
+      if (targetDay !== null) {
+        while (targetTehran.getUTCDay() !== targetDay || targetTehran <= tehranNow) {
+          targetTehran.setUTCDate(targetTehran.getUTCDate() + 1);
+        }
+      } else if (targetTehran <= tehranNow) {
+        targetTehran.setUTCDate(targetTehran.getUTCDate() + 7);
+      }
+    } else if (targetTehran <= tehranNow) {
+      targetTehran.setUTCDate(targetTehran.getUTCDate() + 1);
+    }
+
+    const remind_at_utc = new Date(targetTehran.getTime() - offsetMs).toISOString();
+    const description = original.length > 300 ? original.substring(0, 300) : original;
+    const title = original.length > 80 ? original.substring(0, 80) : original;
+
+    return {
+      success: true,
+      reminder: {
+        title,
+        description,
+        schedule_type,
+        remind_at_utc,
+        local_time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+        days_of_week: [],
+        interval_hours: null,
+        delete_after_done: schedule_type === "once"
+      }
+    };
+  } catch {
+    return { success: false, needsInput: true };
+  }
+}
+
 export async function handleTelegramWebhook(request, env, config, ctx) {
   const start = Date.now();
 

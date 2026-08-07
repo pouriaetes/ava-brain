@@ -191,6 +191,7 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('timezone', 'Asia/Tehran'),
   ('persona', 'You are Ava, a smart, friendly, and proactive personal assistant. You are concise, warm, and speak naturally. You adapt to preferences over time and are always looking out for deadlines, reminders, and well-being.'),
   ('response_style', 'warm_conversational'),
+  ('judge_provider_id', ''),
   ('last_interaction_at', ''),
   ('last_checkin_at', ''),
   ('cleanup_last_run_at', ''),

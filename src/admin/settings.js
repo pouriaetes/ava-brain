@@ -7,9 +7,10 @@ export async function handleSettingsPage(request, env, config) {
 
   if (request.method === "GET") {
     const settings = await getAllSettings(db);
+    const providers = await getApiProviders(db);
     return new Response(layout({
       title: "Settings",
-      content: renderSettingsForm(settings),
+      content: renderSettingsForm(settings, providers),
       session: true,
     }), { headers: { "Content-Type": "text/html" } });
   }
@@ -25,6 +26,7 @@ export async function handleSettingsPage(request, env, config) {
       timezone: formData.get("timezone"),
       checkin_enabled: formData.get("checkin_enabled") === "on" ? "true" : "false",
       nightly_summary_enabled: formData.get("nightly_summary_enabled") === "on" ? "true" : "false",
+      judge_provider_id: formData.get("judge_provider_id") || "",
     };
 
     for (const [key, value] of Object.entries(updates)) {
@@ -39,9 +41,10 @@ export async function handleSettingsPage(request, env, config) {
     await log(db, "info", "settings_updated", { keys: Object.keys(updates) });
 
     const settings = await getAllSettings(db);
+    const providers = await getApiProviders(db);
     return new Response(layout({
       title: "Settings",
-      content: `<div class="flash success">Settings saved.</div>${renderSettingsForm(settings)}`,
+      content: `<div class="flash success">Settings saved.</div>${renderSettingsForm(settings, providers)}`,
       session: true,
     }), { headers: { "Content-Type": "text/html" } });
   }
@@ -58,7 +61,16 @@ async function getAllSettings(db) {
   return map;
 }
 
-function renderSettingsForm(settings) {
+async function getApiProviders(db) {
+  const results = await db.prepare("SELECT id, name, kind, model, enabled FROM api_providers WHERE enabled = 1 ORDER BY priority ASC").all();
+  return results.results || [];
+}
+
+function renderSettingsForm(settings, providers) {
+  const providerOptions = providers
+    .map(p => `<option value="${p.id}"${settings.judge_provider_id === String(p.id) ? ' selected' : ''}>${escHtml(p.name)} (${escHtml(p.model)})</option>`)
+    .join('');
+  
   return `
     <div class="card">
       <h2>Bot Settings</h2>
@@ -77,6 +89,13 @@ function renderSettingsForm(settings) {
 
         <label>Response Style</label>
         <input type="text" name="response_style" value="${escHtml(settings.response_style || "")}">
+
+        <label>Judge / Classifier Provider</label>
+        <select name="judge_provider_id">
+          <option value="">-- Use Default --</option>
+          ${providerOptions}
+        </select>
+        <small>Select which AI provider should be used for initial message classification (Judge).</small>
 
         <label>
           <input type="checkbox" name="checkin_enabled" ${settings.checkin_enabled === "true" ? "checked" : ""}>

@@ -283,22 +283,43 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
       entities: message.entities,
     };
 
-    // 7. Route intent
+    // 7. Route intent - Apply time-based filter and Judge logic
     const explicitTask = isExplicitTaskCommand(message.text || "");
     const lastActiveRaw = session?.last_active_at || null;
     const minutesSinceLastMessage = lastActiveRaw
       ? (Date.now() - new Date(String(lastActiveRaw).replace(" ", "T") + "Z").getTime()) / 60000
       : Infinity;
     const currentMode = session?.mode || "chat";
+    
+    // Get judge provider ID from settings
+    let judgeProviderId = null;
+    try {
+      const judgeProviderSetting = await env.DB.prepare("SELECT value FROM settings WHERE key = 'judge_provider_id'").first();
+      if (judgeProviderSetting && judgeProviderSetting.value) {
+        judgeProviderId = parseInt(judgeProviderSetting.value, 10);
+      }
+    } catch (e) {
+      // If setting doesn't exist or error, continue without override
+    }
+    
     let judgeCategory;
     if (explicitTask) {
+      // Explicit task command - always route to task
       judgeCategory = "task";
     } else if (currentMode === "chat" && minutesSinceLastMessage <= 30) {
+      // Within 30 minutes of last message in chat mode - direct to memory
       judgeCategory = "memory";
+    } else if (currentMode === "task") {
+      // In task mode - always run Judge to check if user wants to continue task or switch to chat
+      const judgeResult = await judgeMessage(telegramMessage, session?.summary || "", config, env, judgeProviderId);
+      judgeCategory = judgeResult.category;
     } else {
-      const judgeResult = await judgeMessage(telegramMessage, session?.summary || "", config, env);
+      // More than 30 minutes since last message or first message - run Judge
+      const judgeResult = await judgeMessage(telegramMessage, session?.summary || "", config, env, judgeProviderId);
       judgeCategory = judgeResult.category;
     }
+    
+    // Update session mode if changed
     if (session?.id && judgeCategory !== currentMode) {
       const sessionManagerForMode = new SessionManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
       await sessionManagerForMode.updateSessionMode(session.id, judgeCategory);

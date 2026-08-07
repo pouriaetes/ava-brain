@@ -1,51 +1,68 @@
 ```
-# Wrangler state and D1 database files
-.wrangler/state/
+# Wrangler temporary files
+.wrangler/tmp/
 
-# Environment variables
+# Dependencies
+node_modules/
+
+# Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Logs
 *.log
 
-# Temporary files
-*.tmp
-
-# Editor/IDE files
+# Editor
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # Build artifacts
 dist/
 build/
 target/
 
-# Dependencies
-node_modules/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-venv/
-.venv/
-.env
 
-# Database files
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
+# Temporary files
+*.tmp
+*.swp
+*.swo
 
-# Coverage reports
-coverage/
-htmlcov/
-*.coverage
-
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
 ```

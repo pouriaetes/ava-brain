@@ -11,7 +11,7 @@ import { RoutineManager } from "../lib/routines.js";
 import { SessionManager } from "../lib/sessions.js";
 import { AIProviderManager } from "../lib/ai.js";
 import { encrypt, decrypt } from "../lib/crypto.js";
-import { judgeMessage, isExplicitTaskCommand } from "../lib/judge.js";
+import { judgeMessage, isExplicitTaskCommand, hasExplicitCommand } from "../lib/judge.js";
 
 function toEnglishDigits(input) {
   return String(input || "")
@@ -229,6 +229,63 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     // 3. Typing indicator
     await sendTypingAction(config, chatId);
 
+    // Change 18: Handle new commands /status and /tasks
+    const messageText = message.text || "";
+    if (messageText.startsWith("/")) {
+      if (messageText === "/status" || messageText === "/tasks") {
+        try {
+          let statusMessage = "📊 *Status Report*\\n\\n";
+          
+          // Get session info
+          const sessionInfo = await env.DB.prepare("SELECT mode, last_active_at FROM sessions WHERE chat_id = ? ORDER BY last_active_at DESC LIMIT 1").bind(chatId).first();
+          statusMessage += `Mode: ${sessionInfo?.mode || 'chat'}\\n`;
+          statusMessage += `Last Active: ${sessionInfo?.last_active_at || 'N/A'}\\n\\n`;
+          
+          // Get task count
+          const taskCount = await env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status != 'completed'").first();
+          statusMessage += `📝 Open Tasks: ${taskCount?.count || 0}\\n`;
+          
+          // Get reminder count  
+          const reminderCount = await env.DB.prepare("SELECT COUNT(*) as count FROM reminders WHERE status = 'pending'").first();
+          statusMessage += `⏰ Pending Reminders: ${reminderCount?.count || 0}\\n`;
+          
+          // Get active projects
+          const projectCount = await env.DB.prepare("SELECT COUNT(*) as count FROM projects WHERE status = 'active'").first();
+          statusMessage += `🚀 Active Projects: ${projectCount?.count || 0}\\n\\n`;
+          
+          // Recent tasks
+          if (messageText === "/tasks") {
+            statusMessage += "*Recent Tasks:*\\n";
+            const recentTasks = await env.DB.prepare("SELECT title, status, due_date_utc FROM tasks ORDER BY created_at DESC LIMIT 5").all();
+            if (recentTasks.results && recentTasks.results.length > 0) {
+              for (const task of recentTasks.results) {
+                const emoji = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '🔄' : '⏳';
+                statusMessage += `${emoji} ${task.title}`;
+                if (task.due_date_utc) {
+                  statusMessage += ` (Due: ${new Date(task.due_date_utc).toLocaleDateString()})`;
+                }
+                statusMessage += "\\n";
+              }
+            } else {
+              statusMessage += "No tasks yet.\\n";
+            }
+          }
+          
+          await sendTelegramMessage(config, chatId, statusMessage, { parse_mode: "Markdown" });
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { "Content-Type": "application/json" }
+          });
+        } catch (cmdError) {
+          await log(env.DB, "warn", "command_error", { error: cmdError.message, command: messageText });
+        }
+      } else if (messageText === "/help") {
+        await sendTelegramMessage(config, chatId, "Available commands:\\n/start - Start the bot\\n/help - Show this help\\n/status - Show system status\\n/tasks - List your tasks\\n/task <title> - Create a new task\\n/forget <text> - Delete memory");
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // 3.5. Voice message transcription
     let isVoiceInput = false;
     if (message.voice && message.voice.file_id) {
@@ -283,15 +340,16 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
       entities: message.entities,
     };
 
-    // 7. Route intent - Apply time-based filter and Judge logic
+    // 7. Route intent - Apply time-based filter and Judge logic (Change 1, 8)
     const explicitTask = isExplicitTaskCommand(message.text || "");
-    const lastActiveRaw = session?.last_active_at || null;
+    const hasExplicit = hasExplicitCommand(message.text || "");
+    const lastActiveRaw = session?.last_message_at || session?.last_active_at || null;
     const minutesSinceLastMessage = lastActiveRaw
       ? (Date.now() - new Date(String(lastActiveRaw).replace(" ", "T") + "Z").getTime()) / 60000
       : Infinity;
     const currentMode = session?.mode || "chat";
     
-    // Get judge provider ID from settings
+    // Get judge provider ID from settings (Change 5)
     let judgeProviderId = null;
     try {
       const judgeProviderSetting = await env.DB.prepare("SELECT value FROM settings WHERE key = 'judge_provider_id'").first();
@@ -303,11 +361,12 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     }
     
     let judgeCategory;
-    if (explicitTask) {
+    // Change 1 & 8: Check explicit commands first, then time-based routing
+    if (explicitTask || hasExplicit) {
       // Explicit task command - always route to task
       judgeCategory = "task";
     } else if (currentMode === "chat" && minutesSinceLastMessage <= 30) {
-      // Within 30 minutes of last message in chat mode - direct to memory
+      // Change 1: Within 30 minutes of last message in chat mode - direct to memory
       judgeCategory = "memory";
     } else if (currentMode === "task") {
       // In task mode - always run Judge to check if user wants to continue task or switch to chat
@@ -403,25 +462,48 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
           }
         }
       }
-    } catch (extractionError) {
-      await log(env.DB, "warn", "profile_fact_extraction_failed", { error: extractionError.message });
-    }
+    // Change 10: Hidden thinking step before final response (internal reasoning)
+    // Change 20: Dynamic agent tone based on interaction type (task vs chat)
     let responseText;
+    const isTaskMode = currentMode === 'task' || judgeCategory === 'task';
+    
     if (routing.response_hint) {
       responseText = routing.response_hint;
     } else if (routing.intent === "general_chat" || routing.intent === "voice_reply_request") {
-      // Try AI response
+      // Try AI response with dynamic tone
       try {
         const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
         await aiManager.initialize();
         const nowTehran = new Date().toLocaleString("en-US", { timeZone: "Asia/Tehran", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-        const systemPromptText = await getPersona(env.DB) + `\n\nThe current real date and time (Asia/Tehran timezone) is: ${nowTehran}. Always use this as the true current date/time when the user asks about time, dates, or anything time-relative like "today", "tomorrow", or "how much time is left" — never guess or say you don't know the time.` + "\n\nContext about the user you are talking to:\n" + finalMemoryContext;
+        
+        // Change 20: Adjust persona based on mode
+        let basePersona = await getPersona(env.DB);
+        if (isTaskMode) {
+          basePersona += " You are currently in task management mode. Be concise, action-oriented, and focused on getting things done efficiently. Use clear, directive language.";
+        } else {
+          basePersona += " You are currently in chat mode. Be warm, conversational, and friendly. Engage naturally with the user.";
+        }
+        
+        // Change 10: Add hidden thinking step - internal reasoning prompt
+        const thinkingPrompt = `First, think step-by-step about what the user really needs. Consider:
+1. What is the user's intent?
+2. What information do they need?
+3. What is the most helpful response?
+Then provide your final answer.
+
+${basePersona}
+
+The current real date and time (Asia/Tehran timezone) is: ${nowTehran}. Always use this as the true current date/time when the user asks about time, dates, or anything time-relative like "today", "tomorrow", or "how much time is left" — never guess or say you don't know the time.
+
+Context about the user you are talking to:
+${finalMemoryContext}`;
+
         const aiResponse = await aiManager.chat(
           [
             ...conversationHistory,
             { role: "user", content: message.text || "" }
           ],
-          { capabilities: ["chat"], systemPrompt: systemPromptText }
+          { capabilities: ["chat"], systemPrompt: thinkingPrompt }
         );
         responseText = aiResponse.content || responseText;
       } catch (aiError) {

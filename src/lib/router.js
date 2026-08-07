@@ -11,6 +11,7 @@ Input: Current user message + short summary of current session + current Tehran 
 You must specify at least the necessary tables in tables_to_read, no more.
 If the message was about a temporary project (near deadline, informal tone) and the user hasn't created a similar project before, intent=project_create and action=create_project with metadata.temporary=true.
 If uncertainty is high, set needs_user_confirmation=true and fill missing_fields.
+If the user asks to be reminded about a personal task at a specific time/date or repeatedly, use intent=reminder_create, not routine_create.
 
 Allowed intents:
 - general_chat
@@ -120,17 +121,26 @@ export class Router {
       };
     }
 
-    if (text.includes("remind") || text.includes("reminder")) {
+    if (
+      text.includes("remind") ||
+      text.includes("reminder") ||
+      text.includes("یادآوری") ||
+      text.includes("یادآوری") ||
+      text.includes("یادم بنداز") ||
+      text.includes("یادام بنداز") ||
+      text.includes("یادت باشه") ||
+      text.includes("یادت نره")
+    ) {
       return {
         intent: "reminder_create",
-        confidence: 0.7,
+        confidence: 0.8,
         language: /[؀-ۿ]/.test(text) ? "fa" : "en",
         needs_user_confirmation: false,
         missing_fields: [],
         tables_to_read: ["reminders"],
-        actions: ["create_reminder"],
+        actions: [],
         memory_to_save: [],
-        response_hint: "Reminder created.",
+        response_hint: ""
       };
     }
 

@@ -102,14 +102,23 @@ export class ReminderManager {
   // Get due reminders
   async getDueReminders(now = new Date().toISOString()) {
     try {
-      const results = await this.db
-        .prepare(
-          "SELECT * FROM reminders WHERE status = 'pending' AND remind_at_utc <= ? ORDER BY priority DESC, remind_at_utc ASC"
-        )
-        .bind(now)
-        .all();
+      const results = await this.db.prepare(
+        `SELECT * FROM reminders
+         WHERE status = 'pending'
+           AND remind_at_utc IS NOT NULL
+           AND CAST(strftime('%s', remind_at_utc) AS INTEGER) <= CAST(strftime('%s', 'now') AS INTEGER) + 300
+           AND CAST(strftime('%s', remind_at_utc) AS INTEGER) >= CAST(strftime('%s', 'now') AS INTEGER) - 600`
+      ).all();
 
-      return results.results || [];
+      const nowMs = Date.parse(now) || Date.now();
+
+      return (results.results || []).sort((a, b) => {
+        const aTime = Date.parse(a.remind_at_utc);
+        const bTime = Date.parse(b.remind_at_utc);
+        if (isNaN(aTime)) return 1;
+        if (isNaN(bTime)) return -1;
+        return Math.abs(aTime - nowMs) - Math.abs(bTime - nowMs);
+      });
     } catch (error) {
       await this.logger.error(this.db, "reminders", "due_error", { error: error.message });
       return [];
@@ -131,25 +140,114 @@ export class ReminderManager {
   // Reschedule a recurring reminder to its next occurrence instead of marking it permanently notified
   async rescheduleRecurringReminder(reminderId, repeatRule, currentRemindAtUtc) {
     try {
+      let rule = repeatRule || "";
+      let schedule = {};
+
+      if (rule && String(rule).trim().startsWith("{")) {
+        try {
+          schedule = JSON.parse(rule);
+          rule = schedule.schedule_type || "";
+        } catch {
+          schedule = {};
+        }
+      }
+
+      if (!rule && schedule.interval_hours) {
+        rule = "interval";
+      }
+
       const current = new Date(currentRemindAtUtc);
-      let next = new Date(current);
-      if (repeatRule === "daily") {
+      const next = new Date(current);
+
+      if (schedule.interval_hours && Number(schedule.interval_hours) > 0) {
+        next.setTime(current.getTime() + Number(schedule.interval_hours) * 60 * 60 * 1000);
+      } else if (rule === "hourly") {
+        next.setTime(current.getTime() + 60 * 60 * 1000);
+      } else if (rule === "daily") {
         next.setUTCDate(next.getUTCDate() + 1);
-      } else if (repeatRule === "weekly") {
+      } else if (rule === "weekly") {
         next.setUTCDate(next.getUTCDate() + 7);
-      } else if (repeatRule === "monthly") {
+      } else if (rule === "monthly") {
         next.setUTCMonth(next.getUTCMonth() + 1);
       } else {
-        await this.markNotified(reminderId);
+        await this.markDone(reminderId);
         return;
       }
+
       await this.db.prepare(
         "UPDATE reminders SET remind_at_utc = ?, status = 'pending', notified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
       ).bind(next.toISOString(), reminderId).run();
-      await this.logger.info(this.db, "reminders", "rescheduled", { reminderId, repeatRule, nextRemindAtUtc: next.toISOString() });
+
+      await this.logger.info(this.db, "reminders", "rescheduled", {
+        reminderId,
+        repeatRule: rule,
+        nextRemindAtUtc: next.toISOString()
+      });
     } catch (error) {
-      await this.logger.error(this.db, "reminders", "reschedule_error", { error: error.message, reminderId });
-      await this.markNotified(reminderId);
+      await this.logger.error(this.db, "reminders", "reschedule_error", {
+        error: error.message,
+        reminderId
+      });
+      await this.releaseReminder(reminderId);
+    }
+  }
+
+  async claimReminder(id) {
+    try {
+      const result = await this.db.prepare(
+        "UPDATE reminders SET status = 'processing', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+      ).bind(id).run();
+
+      return (result.meta?.changes || 0) > 0;
+    } catch (error) {
+      await this.logger.error(this.db, "reminders", "claim_error", { error: error.message, id });
+      return false;
+    }
+  }
+
+  async markDone(id) {
+    try {
+      await this.db.prepare(
+        "UPDATE reminders SET status = 'done', notified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+      ).bind(id).run();
+    } catch (error) {
+      await this.logger.error(this.db, "reminders", "mark_done_error", { error: error.message, id });
+    }
+  }
+
+  async releaseReminder(id) {
+    try {
+      await this.db.prepare(
+        "UPDATE reminders SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'processing'"
+      ).bind(id).run();
+    } catch (error) {
+      await this.logger.error(this.db, "reminders", "release_error", { error: error.message, id });
+    }
+  }
+
+  async cleanupDoneOnceReminders() {
+    try {
+      const result = await this.db.prepare(
+        `DELETE FROM reminders
+         WHERE status = 'done'
+           AND (
+             repeat_rule IS NULL
+             OR repeat_rule = ''
+             OR repeat_rule = 'once'
+             OR repeat_rule LIKE '%"schedule_type":"once"%'
+           )
+           AND (
+             updated_at IS NULL
+             OR CAST(strftime('%s', updated_at) AS INTEGER) <= CAST(strftime('%s', 'now') AS INTEGER) - 60
+           )`
+      ).run();
+
+      const deleted = result.meta?.changes || 0;
+      if (deleted > 0) {
+        await this.logger.info(this.db, "reminders", "done_once_reminders_cleaned", { deleted });
+      }
+    } catch (error) {
+      await this.logger.error(this.db, "reminders", "cleanup_done_once_error", { error: error.message });
     }
   }
 

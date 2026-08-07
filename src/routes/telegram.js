@@ -122,8 +122,38 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
       summary: session?.summary || "",
     });
 
+    let reminderDraftContent = "";
+    try {
+      const draftRow = await env.DB.prepare(
+        "SELECT content FROM memory_short_term WHERE session_id = ? AND type = 'reminder_draft' AND expires_at > ? ORDER BY created_at DESC LIMIT 1"
+      ).bind(chatId, new Date().toISOString()).first();
+
+      reminderDraftContent = draftRow?.content || "";
+    } catch {
+      reminderDraftContent = "";
+    }
+
+    if (
+      reminderDraftContent &&
+      looksLikeReminderFollowUp(String(message.text || ""))
+    ) {
+      routing.intent = "reminder_create";
+    }
+
     if (routing.intent === "reminder_create") {
-      const reminderOutcome = await handleReminderCreate(config, env, message, routing);
+      const reminderOverrideText = reminderDraftContent
+        ? `${reminderDraftContent}\n${message.text || ""}`
+        : (message.text || "");
+
+      const reminderOutcome = await handleReminderCreate(
+        config,
+        env,
+        message,
+        routing,
+        chatId,
+        reminderOverrideText
+      );
+
       routing.actions = [];
       routing.response_hint = reminderOutcome.message;
     }
@@ -310,7 +340,174 @@ function parseReminderJson(text) {
   }
 }
 
+function toEnglishDigits(input) {
+  return String(input || "")
+    .replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)))
+    .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)));
+}
+
+function looksLikeReminderFollowUp(text) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (t.startsWith("/")) return false;
+
+  return /(ساعت|صبح|بعد\s*از\s*ظهر|عصر|شب|ظهر|امروز|فردا|پس\s*فردا|پس‌فردا|هر\s*روز|هر\s*هفته|هر\s*شب|هر\s*ماه|یادآوری|یاد\s*آوری|یاد\s*اوری|یادم\s*بنداز|یادت\s*باشه|یادت\s*نره|\d{1,2}:\d{2}|[۰-۹]{1,2}[:：][۰-۹]{2})/i.test(t);
+}
+
+async function saveReminderDraft(env, chatId, content) {
+  try {
+    const safeContent = String(content || "").substring(0, 1500);
+    if (!chatId || !safeContent) return;
+
+    await env.DB.prepare(
+      "DELETE FROM memory_short_term WHERE session_id = ? AND type = 'reminder_draft'"
+    ).bind(chatId).run();
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    await env.DB.prepare(
+      "INSERT INTO memory_short_term (session_id, type, content, importance, metadata, expires_at) VALUES (?, 'reminder_draft', ?, 3, '{}', ?)"
+    ).bind(chatId, safeContent, expiresAt).run();
+  } catch (error) {
+    try {
+      await log.warn(env.DB, "telegram", "save_reminder_draft_failed", { error: error.message });
+    } catch {}
+  }
+}
+
+async function clearReminderDraft(env, chatId) {
+  try {
+    if (!chatId) return;
+    await env.DB.prepare(
+      "DELETE FROM memory_short_term WHERE session_id = ? AND type = 'reminder_draft'"
+    ).bind(chatId).run();
+  } catch (error) {
+    try {
+      await log.warn(env.DB, "telegram", "clear_reminder_draft_failed", { error: error.message });
+    } catch {}
+  }
+}
+
+function deterministicReminderExtract(text) {
+  try {
+    const original = String(text || "").replace(/\s+/g, " ").trim();
+    const normalized = toEnglishDigits(original).toLowerCase();
+
+    const offsetMs = 3.5 * 60 * 60 * 1000;
+    const tehranNow = new Date(Date.now() + offsetMs);
+
+    const hasDaily = /(هر\s*روز|روزانه|every\s*day)/i.test(normalized);
+    const hasWeekly = /(هر\s*هفته|هفتگی|every\s*week)/i.test(normalized);
+    const hasTomorrow = /(فردا|tomorrow)/i.test(normalized);
+
+    let hour = null;
+    let minute = 0;
+
+    const colonMatch = normalized.match(/(\d{1,2})[:：](\d{2})/);
+    if (colonMatch) {
+      hour = parseInt(colonMatch[1], 10);
+      minute = parseInt(colonMatch[2], 10);
+    } else {
+      const hourMatch =
+        normalized.match(/ساعت\s*(\d{1,2})/) ||
+        normalized.match(/(\d{1,2})\s*(بعد\s*از\s*ظهر|عصر|شب|صبح|ظهر)/);
+
+      if (hourMatch) {
+        hour = parseInt(hourMatch[1], 10);
+      }
+    }
+
+    if (hour === null || isNaN(hour)) {
+      return { success: false, needsInput: true };
+    }
+
+    const hasPm = /(بعد\s*از\s*ظهر|عصر|شب)/i.test(normalized);
+    const hasAm = /(صبح)/i.test(normalized);
+
+    if (!hasPm && !hasAm && hour < 12 && tehranNow.getUTCHours() >= hour) {
+      hour += 12;
+    }
+
+    if (hasPm && hour < 12) hour += 12;
+    if (hasAm && hour === 12) hour = 0;
+
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return { success: false, needsInput: true };
+    }
+
+    let schedule_type = "once";
+    if (hasDaily) {
+      schedule_type = "daily";
+    } else if (
+      hasWeekly ||
+      /(شنبه|یکشنبه|دوشنبه|سه\s*شنبه|سه‌شنبه|چهارشنبه|پنج\s*شنبه|پنج‌شنبه|جمعه)/i.test(normalized)
+    ) {
+      schedule_type = "weekly";
+    }
+
+    const targetTehran = new Date(
+      Date.UTC(
+        tehranNow.getUTCFullYear(),
+        tehranNow.getUTCMonth(),
+        tehranNow.getUTCDate(),
+        hour,
+        minute,
+        0,
+        0
+      )
+    );
+
+    if (hasTomorrow) {
+      targetTehran.setUTCDate(targetTehran.getUTCDate() + 1);
+    }
+
+    if (schedule_type === "weekly") {
+      let targetDay = null;
+
+      if (/یکشنبه/i.test(normalized)) targetDay = 0;
+      else if (/دوشنبه/i.test(normalized)) targetDay = 1;
+      else if (/سه\s*شنبه|سه‌شنبه/i.test(normalized)) targetDay = 2;
+      else if (/چهارشنبه/i.test(normalized)) targetDay = 3;
+      else if (/پنج\s*شنبه|پنج‌شنبه/i.test(normalized)) targetDay = 4;
+      else if (/جمعه/i.test(normalized)) targetDay = 5;
+      else if (/شنبه/i.test(normalized)) targetDay = 6;
+
+      if (targetDay !== null) {
+        while (targetTehran.getUTCDay() !== targetDay || targetTehran <= tehranNow) {
+          targetTehran.setUTCDate(targetTehran.getUTCDate() + 1);
+        }
+      } else if (targetTehran <= tehranNow) {
+        targetTehran.setUTCDate(targetTehran.getUTCDate() + 7);
+      }
+    } else if (targetTehran <= tehranNow) {
+      targetTehran.setUTCDate(targetTehran.getUTCDate() + 1);
+    }
+
+    const remind_at_utc = new Date(targetTehran.getTime() - offsetMs).toISOString();
+    const description = original.length > 300 ? original.substring(0, 300) : original;
+    const title = original.length > 80 ? original.substring(0, 80) : original;
+
+    return {
+      success: true,
+      reminder: {
+        title,
+        description,
+        schedule_type,
+        remind_at_utc,
+        local_time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+        days_of_week: [],
+        interval_hours: null,
+        delete_after_done: schedule_type === "once"
+      }
+    };
+  } catch {
+    return { success: false, needsInput: true };
+  }
+}
+
 async function extractReminderFromMessage(config, env, messageText) {
+  const fallback = deterministicReminderExtract(messageText);
+
   try {
     const aiManager = new AIProviderManager(
       config,
@@ -338,16 +535,18 @@ async function extractReminderFromMessage(config, env, messageText) {
       "You are the reminder extraction module for Ava.",
       `Current UTC: ${utcIso}`,
       `Current Tehran time: ${tehranLocal}`,
-      "Extract exactly one reminder from the user's message.",
+      "The input may be a single reminder request OR a previous reminder request plus the user's clarification.",
+      "Combine all provided lines into exactly one reminder.",
       "Return ONLY compact JSON, no markdown.",
       `Schema: {"ok":true,"title":"short label","description":"task text","schedule_type":"once|daily|weekly|monthly|hourly|interval","remind_at_utc":"ISO UTC string","local_time":"HH:MM or empty","days_of_week":[0-6],"interval_hours":number|null,"delete_after_done":boolean}`,
       "Rules:",
       "- Use schedule_type=once for a one-time reminder; delete_after_done=true.",
       "- Use schedule_type=daily for every day, weekly for every week, monthly for every month, hourly for every hour, interval for every N hours.",
       "- If a specific date has no explicit time, use 08:00 Tehran time.",
+      "- If only an hour is given without AM/PM, choose the next plausible future occurrence in Tehran time. Do not return ok:false only because AM/PM is missing.",
       "- remind_at_utc must be the next future occurrence, converted from Asia/Tehran to UTC.",
       "- For weekly, Sunday=0.",
-      "- If there is not enough information to determine at least a plausible time, return {\"ok\":false,\"missing\":\"time\"}."
+      '- If there is no usable time/date at all, return {"ok":false,"missing":"time"}.'
     ].join("\n");
 
     const result = await aiManager.chat(
@@ -364,49 +563,68 @@ async function extractReminderFromMessage(config, env, messageText) {
     );
 
     const parsed = parseReminderJson(result?.content || "");
-    if (!parsed || parsed.ok === false) {
-      return { success: false, needsInput: true };
-    }
 
-    const remindAt = new Date(parsed.remind_at_utc);
-    if (!parsed.remind_at_utc || isNaN(remindAt.getTime())) {
-      return { success: false, needsInput: true };
-    }
+    if (parsed && parsed.ok !== false) {
+      const remindAt = new Date(parsed.remind_at_utc);
 
-    const allowedScheduleTypes = ["once", "daily", "weekly", "monthly", "hourly", "interval"];
-    const scheduleType = allowedScheduleTypes.includes(parsed.schedule_type)
-      ? parsed.schedule_type
-      : "once";
+      if (parsed.remind_at_utc && !isNaN(remindAt.getTime())) {
+        const allowedScheduleTypes = ["once", "daily", "weekly", "monthly", "hourly", "interval"];
+        const scheduleType = allowedScheduleTypes.includes(parsed.schedule_type)
+          ? parsed.schedule_type
+          : "once";
 
-    const intervalHours = Number(parsed.interval_hours);
+        const intervalHours = Number(parsed.interval_hours);
 
-    return {
-      success: true,
-      reminder: {
-        title: parsed.title || "",
-        description: parsed.description || "",
-        schedule_type: scheduleType,
-        remind_at_utc: remindAt.toISOString(),
-        local_time: parsed.local_time || "",
-        days_of_week: Array.isArray(parsed.days_of_week) ? parsed.days_of_week : [],
-        interval_hours: Number.isFinite(intervalHours) && intervalHours > 0 ? intervalHours : null,
-        delete_after_done: parsed.delete_after_done === true || scheduleType === "once"
+        return {
+          success: true,
+          reminder: {
+            title: parsed.title || "",
+            description: parsed.description || "",
+            schedule_type: scheduleType,
+            remind_at_utc: remindAt.toISOString(),
+            local_time: parsed.local_time || "",
+            days_of_week: Array.isArray(parsed.days_of_week) ? parsed.days_of_week : [],
+            interval_hours: Number.isFinite(intervalHours) && intervalHours > 0 ? intervalHours : null,
+            delete_after_done: parsed.delete_after_done === true || scheduleType === "once"
+          }
+        };
       }
-    };
+    }
+
+    if (fallback.success) return fallback;
+
+    return { success: false, needsInput: true };
   } catch (error) {
-    await log.warn(env.DB, "telegram", "reminder_extraction_failed", { error: error.message });
+    try {
+      await log.warn(env.DB, "telegram", "reminder_extraction_failed", { error: error.message });
+    } catch {}
+
+    if (fallback.success) return fallback;
+
     return { success: false, needsInput: false, error: true };
   }
 }
 
-async function handleReminderCreate(config, env, message, routing) {
+async function handleReminderCreate(config, env, message, routing, chatId, overrideText) {
   const language = routing?.language === "fa" ? "fa" : "en";
 
   try {
-    const text = message?.text || "";
-    const extraction = await extractReminderFromMessage(config, env, text);
+    const rawText = String(overrideText || message?.text || "").trim();
+
+    if (!rawText) {
+      return {
+        message:
+          language === "fa"
+            ? "لطفاً متن یادآوری را بفرست."
+            : "Please send the reminder text."
+      };
+    }
+
+    const extraction = await extractReminderFromMessage(config, env, rawText);
 
     if (!extraction.success) {
+      if (chatId) await saveReminderDraft(env, chatId, rawText);
+
       if (extraction.needsInput) {
         return {
           message:
@@ -427,7 +645,20 @@ async function handleReminderCreate(config, env, message, routing) {
     const r = extraction.reminder;
     let remindAt = new Date(r.remind_at_utc);
 
+    if (isNaN(remindAt.getTime())) {
+      if (chatId) await saveReminderDraft(env, chatId, rawText);
+
+      return {
+        message:
+          language === "fa"
+            ? "باشه، فقط زمان دقیق را بگو؛ مثلاً «فردا ساعت ۸ صبح» یا «هر روز ساعت ۹»."
+            : "Sure, tell me the exact time; for example: tomorrow at 8 AM or every day at 9."
+      };
+    }
+
     if (r.schedule_type === "once" && remindAt.getTime() <= Date.now()) {
+      if (chatId) await saveReminderDraft(env, chatId, rawText);
+
       return {
         message:
           language === "fa"
@@ -472,13 +703,15 @@ async function handleReminderCreate(config, env, message, routing) {
     });
 
     await reminderManager.createReminder({
-      title: r.title || text.substring(0, 100),
-      description: r.description || text,
+      title: r.title || rawText.substring(0, 100),
+      description: r.description || rawText,
       remindAtUtc: r.remind_at_utc,
       repeatRule,
       priority: "medium",
       sourceMessageId: String(message?.message_id || "")
     });
+
+    if (chatId) await clearReminderDraft(env, chatId);
 
     return {
       message:
@@ -487,7 +720,9 @@ async function handleReminderCreate(config, env, message, routing) {
           : "Done; I will remind you on time."
     };
   } catch (error) {
-    await log.error(env.DB, "telegram", "reminder_create_failed", { error: error.message });
+    try {
+      await log.error(env.DB, "telegram", "reminder_create_failed", { error: error.message });
+    } catch {}
 
     return {
       message:

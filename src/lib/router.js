@@ -123,37 +123,13 @@ export class Router {
       };
     }
 
-    if (
-      text.includes("remind") ||
-      text.includes("reminder") ||
-      text.includes("یادآوری") ||
-      text.includes("یادآوری") ||
-      text.includes("یادم بنداز") ||
-      text.includes("یادام بنداز") ||
-      text.includes("یادت باشه") ||
-      text.includes("یادت نره")
-    ) {
-      return {
-        intent: "reminder_create",
-        confidence: 0.8,
-        language: /[؀-ۿ]/.test(text) ? "fa" : "en",
-        needs_user_confirmation: false,
-        missing_fields: [],
-        tables_to_read: ["reminders"],
-        actions: [],
-        memory_to_save: [],
-        response_hint: ""
-      };
-    }
+    const explicitReminderRegex = /(remind|reminder|یادآوری|یاد\s*آوری|یاد\s*اوری|یاداوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|یادآوری\s*کن|یاد\s*آوری\s*کن|یاد\s*اوری\s*کن)/i;
 
-    const explicitReminderRegex = /(remind|reminder|یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|یادآوری\s*کن)/i;
-    const explicitReminder = explicitReminderRegex.test(rawText);
+    const scheduleRegex = /(هر\s*روز|هر\s*شب|هر\s*هفته|هر\s*ماه|هر\s*سال|هر\s*\d+\s*روز|هر\s*[۰-۹]+\s*روز|روزانه|هفتگی|ماهانه|فردا|پس\s*فردا|پس‌فردا|امروز|شنبه|یکشنبه|دوشنبه|سه\s*شنبه|سه‌شنبه|چهارشنبه|پنج\s*شنبه|پنج‌شنبه|جمعه|every\s*(day|night|week|month|year)|daily|weekly|monthly|hourly|tomorrow|today|\d{1,2}:\d{2}|[۰-۹]{1,2}[:：][۰-۹]{2}|ساعت\s*\d+|ساعت\s*[۰-۹]+)/i;
 
-    const scheduleRegex = /(هر\s*روز|هر\s*شب|هر\s*هفته|هر\s*ماه|هر\s*سال|هر\s*\d+\s*روز|هر\s*[۰-۹]+\s*روز|روزانه|هفتگی|ماهانه|فردا|پس\s*فردا|امروز|شنبه|یکشنبه|دوشنبه|سه\s*شنبه|چهارشنبه|پنج\s*شنبه|جمعه|every\s*(day|night|week|month|year)|daily|weekly|monthly|hourly|tomorrow|today|\d{1,2}:\d{2}|[۰-۹]{1,2}[:：][۰-۹]{2}|ساعت\s*\d+|ساعت\s*[۰-۹]+)/i;
+    const notifyRegex = /(یادآوری|یاد\s*آوری|یاد\s*اوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|(بهم|برام)?\s*(بگو|بگی|پیام\s*بده|پیام\s*بدی|خبر\s*بده|خبر\s*بدی|زنگ\s*بزن|زنگ\s*بزنی|بفرست|بفرستی|ارسال\s*کن|ارسال\s*کنی|یادآوری\s*کن|یاد\s*آوری\s*کن|یاد\s*اوری\s*کن)|remind|reminder)/i;
 
-    const notifyRegex = /(یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|(بهم|برام)?\s*(بگو|بگی|پیام\s*بده|پیام\s*بدی|خبر\s*بده|خبر\s*بدی|زنگ\s*بزن|زنگ\s*بزنی|بفرست|بفرستی|ارسال\s*کن|ارسال\s*کنی|یادآوری\s*کن)|remind|reminder)/i;
-
-    if (explicitReminder || (scheduleRegex.test(rawText) && notifyRegex.test(rawText))) {
+    if (explicitReminderRegex.test(rawText) || (scheduleRegex.test(rawText) && notifyRegex.test(rawText))) {
       return {
         intent: "reminder_create",
         confidence: 0.85,

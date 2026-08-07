@@ -78,9 +78,9 @@ export class AIProviderManager {
     }
 
     const requiredCapabilities = options.capabilities || ["chat"];
-    const suitableProviders = this.providers.filter(p => {
+    const suitableProviders = this.providers.filter((p) => {
       const caps = JSON.parse(p.capabilities || "[]");
-      return caps.includes("chat") && p.enabled;
+      return requiredCapabilities.every((cap) => caps.includes(cap)) && p.enabled;
     });
 
     if (suitableProviders.length === 0) {

@@ -1,72 +1,51 @@
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-dist/
-build/
-*.class
-*.exe
-*.dll
-*.so
-*.a
-*.out
+```
+# Wrangler state and D1 database files
+.wrangler/state/
 
-# Dependencies
-.venv/
-venv/
-node_modules/
-.julia/
-zig*/
-target/
-.gradle/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Environment
+# Environment variables
 .env
 .env.local
-.env.*
+*.env.*
 
-# Editors
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+
+# Editor/IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# System files
-.DS_Store
-Thumbs.db
+# Build artifacts
+dist/
+build/
+target/
 
-# Coverage
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.env
+
+# Database files
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Coverage reports
 coverage/
 htmlcov/
-.coverage
+*.coverage
 
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# OS generated files
+.DS_Store
+Thumbs.db
+```

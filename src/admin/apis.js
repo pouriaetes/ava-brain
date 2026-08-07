@@ -55,6 +55,7 @@ async function addProvider(db, formData, config) {
   const selectedCapabilities = [];
   if (formData.get("cap_chat")) selectedCapabilities.push("chat");
   if (formData.get("cap_routing")) selectedCapabilities.push("routing");
+  if (formData.get("cap_judge")) selectedCapabilities.push("judge");
   if (formData.get("cap_memory_analysis")) selectedCapabilities.push("memory_analysis");
   if (formData.get("cap_image_gen")) selectedCapabilities.push("image_gen");
   if (formData.get("cap_stt")) selectedCapabilities.push("stt");
@@ -89,6 +90,7 @@ async function editProvider(db, formData, config) {
   const selectedCapabilities = [];
   if (formData.get("cap_chat")) selectedCapabilities.push("chat");
   if (formData.get("cap_routing")) selectedCapabilities.push("routing");
+  if (formData.get("cap_judge")) selectedCapabilities.push("judge");
   if (formData.get("cap_memory_analysis")) selectedCapabilities.push("memory_analysis");
   if (formData.get("cap_image_gen")) selectedCapabilities.push("image_gen");
   if (formData.get("cap_stt")) selectedCapabilities.push("stt");
@@ -201,6 +203,7 @@ function renderProvidersList(providers) {
           <div class="capability-group-items">
             <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" checked> Chat (main conversation replies)</label>
             <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing"> Routing (intent/action detection)</label>
+            <label style="font-weight:normal;"><input type="checkbox" name="cap_judge" value="judge"> Judge (task/memory classifier)</label>
             <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis"> Memory Analysis (periodic short-term memory review)</label>
             <label style="font-weight:normal;"><input type="checkbox" name="cap_image_gen" value="image_gen"> Image Generation (generate images from text prompts)</label>
           </div>
@@ -322,6 +325,7 @@ function renderProvidersList(providers) {
               <div class="capability-group-items">
                 <label style="font-weight:normal;"><input type="checkbox" name="cap_chat" value="chat" ${caps.includes("chat") ? "checked" : ""}> Chat (main conversation replies)</label>
                 <label style="font-weight:normal;"><input type="checkbox" name="cap_routing" value="routing" ${caps.includes("routing") ? "checked" : ""}> Routing (intent/action detection)</label>
+                <label style="font-weight:normal;"><input type="checkbox" name="cap_judge" value="judge" ${caps.includes("judge") ? "checked" : ""}> Judge (task/memory classifier)</label>
                 <label style="font-weight:normal;"><input type="checkbox" name="cap_memory_analysis" value="memory_analysis" ${caps.includes("memory_analysis") ? "checked" : ""}> Memory Analysis (periodic short-term memory review)</label>
                 <label style="font-weight:normal;"><input type="checkbox" name="cap_image_gen" value="image_gen" ${caps.includes("image_gen") ? "checked" : ""}> Image Generation (generate images from text prompts)</label>
               </div>

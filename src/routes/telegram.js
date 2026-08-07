@@ -11,6 +11,7 @@ import { RoutineManager } from "../lib/routines.js";
 import { SessionManager } from "../lib/sessions.js";
 import { AIProviderManager } from "../lib/ai.js";
 import { encrypt, decrypt } from "../lib/crypto.js";
+import { judgeMessage, isExplicitTaskCommand } from "../lib/judge.js";
 
 function toEnglishDigits(input) {
   return String(input || "")
@@ -283,10 +284,44 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     };
 
     // 7. Route intent
-    const routing = await routeIntent(telegramMessage, config, env, {
-      id: session?.id || "",
-      summary: session?.summary || "",
-    });
+    const explicitTask = isExplicitTaskCommand(message.text || "");
+    const lastActiveRaw = session?.last_active_at || null;
+    const minutesSinceLastMessage = lastActiveRaw
+      ? (Date.now() - new Date(String(lastActiveRaw).replace(" ", "T") + "Z").getTime()) / 60000
+      : Infinity;
+    const currentMode = session?.mode || "chat";
+    let judgeCategory;
+    if (explicitTask) {
+      judgeCategory = "task";
+    } else if (currentMode === "chat" && minutesSinceLastMessage <= 30) {
+      judgeCategory = "memory";
+    } else {
+      const judgeResult = await judgeMessage(telegramMessage, session?.summary || "", config, env);
+      judgeCategory = judgeResult.category;
+    }
+    if (session?.id && judgeCategory !== currentMode) {
+      const sessionManagerForMode = new SessionManager(config, null, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+      await sessionManagerForMode.updateSessionMode(session.id, judgeCategory);
+    }
+    let routing;
+    if (judgeCategory === "memory") {
+      routing = {
+        intent: "general_chat",
+        confidence: 1,
+        language: /[؀-ۿ]/.test(message.text || "") ? "fa" : "en",
+        needs_user_confirmation: false,
+        missing_fields: [],
+        tables_to_read: [],
+        actions: [],
+        memory_to_save: [],
+        response_hint: ""
+      };
+    } else {
+      routing = await routeIntent(telegramMessage, config, env, {
+        id: session?.id || "",
+        summary: session?.summary || "",
+      });
+    }
 
     if (routing.intent === "reminder_create") {
       const reminderOutcome = await handleReminderCreate(config, env, message, routing);

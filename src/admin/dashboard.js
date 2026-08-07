@@ -87,7 +87,7 @@ export async function handleDashboardPage(env, config, user = null) {
           <div class="card">
             <h3>System Info</h3>
             <div style="margin-top:16px;">
-              <p class="muted" style="font-size:0.85rem;margin-bottom:8px;"><strong>Version:</strong> 2.1.5</p>
+              <p class="muted" style="font-size:0.85rem;margin-bottom:8px;"><strong>Version:</strong> 3.0.0</p>
               <p class="muted" style="font-size:0.85rem;margin-bottom:8px;"><strong>Timezone:</strong> ${config.TIMEZONE || 'UTC'}</p>
               <p class="muted" style="font-size:0.85rem;margin-bottom:8px;"><strong>Last Cron:</strong> ${stats.lastCronRun || 'N/A'}</p>
               <p class="muted" style="font-size:0.85rem;"><strong>Environment:</strong> Cloudflare Workers</p>

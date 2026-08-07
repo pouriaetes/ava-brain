@@ -807,6 +807,7 @@ export function layout({ title, content, session, currentPage = "" }) {
     { href: "/admin/ava_brain/settings", label: "Settings", icon: icons.settings },
     { href: "/admin/ava_brain/apis", label: "APIs", icon: icons.api },
     { href: "/admin/ava_brain/memory", label: "Memory", icon: icons.memory },
+    { href: "/admin/ava_brain/reminders", label: "Reminders", icon: icons.tasks },
     { href: "/admin/ava_brain/tasks", label: "Tasks", icon: icons.tasks },
     { href: "/admin/ava_brain/logs", label: "Logs", icon: icons.logs },
   ];

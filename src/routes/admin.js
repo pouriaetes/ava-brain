@@ -7,6 +7,7 @@ import { handleDashboardPage } from "../admin/dashboard.js";
 import { handleSettingsPage } from "../admin/settings.js";
 import { handleApisPage } from "../admin/apis.js";
 import { handleMemoryPage } from "../admin/memory.js";
+import { handleRemindersPage } from "../admin/reminders.js";
 import { handleTasksPage } from "../admin/tasks.js";
 import { handleLogsPage } from "../admin/logs.js";
 
@@ -44,6 +45,8 @@ export async function handleAdmin(request, env, config) {
       return await handleApisPage(request, env, config);
     case "/admin/ava_brain/memory":
       return await handleMemoryPage(request, env, config);
+    case "/admin/ava_brain/reminders":
+      return await handleRemindersPage(request, env, config);
     case "/admin/ava_brain/tasks":
       return await handleTasksPage(request, env, config);
     case "/admin/ava_brain/logs":

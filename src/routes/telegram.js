@@ -433,8 +433,11 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     }
 
     // 10. Generate response
-    try {
-      if (message.text && message.text.length > 10 && !message.text.startsWith("/")) {
+    let responseText;
+    const isTaskMode = currentMode === 'task' || judgeCategory === 'task';
+    
+    if (message.text && message.text.length > 10 && !message.text.startsWith("/")) {
+      try {
         const extractionPrompt = `Analyze this message from a user and determine if it reveals any durable personal fact about them (their name, occupation, field of study, location, a preference, a skill, or similar). If yes, respond with ONLY a compact JSON object like {"category": "personal", "fact_key": "name", "fact_value": "Pouria", "confidence": 0.9} — if there are multiple facts, respond with a JSON array of such objects. If there is no clear durable personal fact in this message, respond with exactly: none\n\nMessage: "${message.text}"`;
         const aiManagerForExtraction = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
         await aiManagerForExtraction.initialize();
@@ -461,11 +464,13 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
           } catch {
           }
         }
+      } catch {
+        // Extraction failed, continue without it
       }
+    }
+    
     // Change 10: Hidden thinking step before final response (internal reasoning)
     // Change 20: Dynamic agent tone based on interaction type (task vs chat)
-    let responseText;
-    const isTaskMode = currentMode === 'task' || judgeCategory === 'task';
     
     if (routing.response_hint) {
       responseText = routing.response_hint;

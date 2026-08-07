@@ -194,10 +194,13 @@ export class ReminderManager {
 
   async claimReminder(id) {
     try {
+      // Atomic claim: only update if status is 'pending'
+      // This prevents race conditions where multiple cron executions claim the same reminder
       const result = await this.db.prepare(
-        "UPDATE reminders SET status = 'processing', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+        "UPDATE reminders SET status = 'notified', notified_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
       ).bind(id).run();
 
+      // Return true only if exactly one row was affected (claim succeeded)
       return (result.meta?.changes || 0) > 0;
     } catch (error) {
       await this.logger.error(this.db, "reminders", "claim_error", { error: error.message, id });
@@ -207,8 +210,10 @@ export class ReminderManager {
 
   async markDone(id) {
     try {
+      // Use 'notified' status instead of 'done' to match schema constraint
+      // Schema only allows: 'pending', 'notified', 'cancelled'
       await this.db.prepare(
-        "UPDATE reminders SET status = 'done', notified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+        "UPDATE reminders SET status = 'notified', notified_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
       ).bind(id).run();
     } catch (error) {
       await this.logger.error(this.db, "reminders", "mark_done_error", { error: error.message, id });
@@ -217,9 +222,9 @@ export class ReminderManager {
 
   async releaseReminder(id) {
     try {
-      await this.db.prepare(
-        "UPDATE reminders SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'processing'"
-      ).bind(id).run();
+      // No longer needed with atomic claim - keeping for backward compatibility
+      // This method is now a no-op since claim sets status directly to 'notified'
+      await this.logger.info(this.db, "reminders", "release_called_deprecated", { id });
     } catch (error) {
       await this.logger.error(this.db, "reminders", "release_error", { error: error.message, id });
     }
@@ -229,7 +234,7 @@ export class ReminderManager {
     try {
       const result = await this.db.prepare(
         `DELETE FROM reminders
-         WHERE status = 'done'
+         WHERE status = 'notified'
            AND (
              repeat_rule IS NULL
              OR repeat_rule = ''

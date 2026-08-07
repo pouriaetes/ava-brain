@@ -128,27 +128,36 @@ export class SessionManager {
     }
   }
 
-  // Change 7: Get separate task context
+  // Change 7: Get separate task context - uses state_json instead of missing task_context column
   async getTaskContext(sessionId) {
     try {
       const session = await this.db
-        .prepare("SELECT task_context FROM sessions WHERE id = ?")
+        .prepare("SELECT state_json FROM sessions WHERE id = ?")
         .bind(sessionId)
         .first();
       
-      return session?.task_context || "";
+      const state = session?.state_json ? JSON.parse(session.state_json) : {};
+      return state.task_context || "";
     } catch (error) {
       await this.logger.error(this.db, "sessions", "task_context_error", { sessionId, error: error.message });
       return "";
     }
   }
 
-  // Change 7: Update task context separately from chat
+  // Change 7: Update task context separately from chat - stores in state_json
   async updateTaskContext(sessionId, context) {
     try {
+      const existing = await this.db
+        .prepare("SELECT state_json FROM sessions WHERE id = ?")
+        .bind(sessionId)
+        .first();
+      
+      const currentState = existing?.state_json ? JSON.parse(existing.state_json) : {};
+      const newState = { ...currentState, task_context: context, updated_at: new Date().toISOString() };
+      
       await this.db
-        .prepare("UPDATE sessions SET task_context = ? WHERE id = ?")
-        .bind(context, sessionId)
+        .prepare("UPDATE sessions SET state_json = ? WHERE id = ?")
+        .bind(JSON.stringify(newState), sessionId)
         .run();
 
       await this.logger.info(this.db, "sessions", "task_context_updated", { sessionId });

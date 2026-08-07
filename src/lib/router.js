@@ -3,6 +3,8 @@
 // Output format: Valid JSON according to the schema defined in the system
 
 import { log } from "./logger.js";
+import { AIProviderManager } from "./ai.js";
+import { encrypt, decrypt } from "./crypto.js";
 
 // Sample system prompt for the router
 const ROUTER_SYSTEM_PROMPT = `

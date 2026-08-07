@@ -12,6 +12,7 @@ You must specify at least the necessary tables in tables_to_read, no more.
 If the message was about a temporary project (near deadline, informal tone) and the user hasn't created a similar project before, intent=project_create and action=create_project with metadata.temporary=true.
 If uncertainty is high, set needs_user_confirmation=true and fill missing_fields.
 If the user asks to be reminded about a personal task at a specific time/date or repeatedly, use intent=reminder_create, not routine_create.
+This includes requests that ask Ava to send a message, say something, or notify the user at a time/day/recurrence, such as "هر روز ساعت X بهم پیام بده", "بهم بگو", "یادم بنداز", "فردا ساعت ...", or "هر شنبه ...".
 
 Allowed intents:
 - general_chat
@@ -105,6 +106,7 @@ export class Router {
 
   async ruleBasedAnalysis(message, sessionSummary) {
     const text = message.text?.toLowerCase() || "";
+    const rawText = message.text || "";
 
     // Simple pattern matching for common intents
     if (text.includes("remember") || text.includes("note")) {
@@ -135,6 +137,27 @@ export class Router {
         intent: "reminder_create",
         confidence: 0.8,
         language: /[؀-ۿ]/.test(text) ? "fa" : "en",
+        needs_user_confirmation: false,
+        missing_fields: [],
+        tables_to_read: ["reminders"],
+        actions: [],
+        memory_to_save: [],
+        response_hint: ""
+      };
+    }
+
+    const explicitReminderRegex = /(remind|reminder|یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|یادآوری\s*کن)/i;
+    const explicitReminder = explicitReminderRegex.test(rawText);
+
+    const scheduleRegex = /(هر\s*روز|هر\s*شب|هر\s*هفته|هر\s*ماه|هر\s*سال|هر\s*\d+\s*روز|هر\s*[۰-۹]+\s*روز|روزانه|هفتگی|ماهانه|فردا|پس\s*فردا|امروز|شنبه|یکشنبه|دوشنبه|سه\s*شنبه|چهارشنبه|پنج\s*شنبه|جمعه|every\s*(day|night|week|month|year)|daily|weekly|monthly|hourly|tomorrow|today|\d{1,2}:\d{2}|[۰-۹]{1,2}[:：][۰-۹]{2}|ساعت\s*\d+|ساعت\s*[۰-۹]+)/i;
+
+    const notifyRegex = /(یادآوری|یادم\s*بنداز|یادام\s*بنداز|یادت\s*باشه|یادت\s*نره|(بهم|برام)?\s*(بگو|بگی|پیام\s*بده|پیام\s*بدی|خبر\s*بده|خبر\s*بدی|زنگ\s*بزن|زنگ\s*بزنی|بفرست|بفرستی|ارسال\s*کن|ارسال\s*کنی|یادآوری\s*کن)|remind|reminder)/i;
+
+    if (explicitReminder || (scheduleRegex.test(rawText) && notifyRegex.test(rawText))) {
+      return {
+        intent: "reminder_create",
+        confidence: 0.85,
+        language: /[؀-ۿ]/.test(rawText) ? "fa" : "en",
         needs_user_confirmation: false,
         missing_fields: [],
         tables_to_read: ["reminders"],

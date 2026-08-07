@@ -414,11 +414,24 @@ export class AIProviderManager {
   }
 
   async withTimeout(promise, timeoutMs) {
-    const timeout = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
-    });
-
-    return Promise.race([promise, timeout]);
+    // Cloudflare Workers-compatible timeout using AbortController pattern
+    // Avoids setTimeout memory leaks and ensures proper cleanup
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+      const result = await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          controller.signal.addEventListener('abort', () => {
+            reject(new Error(`Timeout after ${timeoutMs}ms`));
+          });
+        })
+      ]);
+      return result;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   getProviders() {

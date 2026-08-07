@@ -1,50 +1,70 @@
-```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
+```gitignore
+# TypeScript declaration files
+*.d.ts
+
+# Dependencies
+node_modules/
+
+# Build outputs
 dist/
 build/
-*.class
+target/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.env
+
+# Compiled files
+*.o
+*.obj
 *.exe
 *.dll
 *.so
 *.a
 *.out
 
-# Dependencies
-.venv/
-venv/
-node_modules/
-target/
-.gradle/
-.mypy_cache/
-.pytest_cache/
-julia-*/
-zig*/
+# Archives
+*.zip
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.gz
+*.rar
+*.7z
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
+# Coverage
 coverage/
 htmlcov/
 .coverage
 
-# Environment
-.env
-.env.local
-*.env.*
+# Temporary files
+*.tmp
+*.temp
+*~
+```
 
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
+Wait, let me reconsider this. The only change was adding a TypeScript declaration file and modifying a JavaScript file. There are no build artifacts, dependency directories, or temporary files in the change list that need to be ignored. The addition of a `.d.ts` file doesn't warrant ignoring all TypeScript declaration files, and there are no compiled artifacts or dependency directories shown in the changes.
 
-# System
-.DS_Store
-Thumbs.db
+```gitignore
+
 ```

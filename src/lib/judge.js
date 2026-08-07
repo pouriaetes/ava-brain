@@ -15,17 +15,26 @@ Rules:
 - If the message is a question, a statement, small talk, or continuing a previous topic, category = "memory".
 - If uncertain, prefer "memory".`;
 
-export async function judgeMessage(message, sessionSummary, config, env) {
+export async function judgeMessage(message, sessionSummary, config, env, overrideProviderId = null) {
   try {
     const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: () => {}, error: () => {}, warn: () => {} }, env.DB);
     await aiManager.initialize();
+    
+    // If overrideProviderId is provided, use only that provider for judging
+    let selectedProvider = null;
+    if (overrideProviderId) {
+      const allProviders = aiManager.getProviders();
+      selectedProvider = allProviders.find(p => p.id === overrideProviderId && p.enabled);
+    }
+    
     const userPrompt = `Current user message: "${message.text || ""}"
 Session summary so far: "${sessionSummary || "(none)"}"
 
 Return ONLY the JSON object described in your instructions.`;
+    
     const result = await aiManager.chat(
       [{ role: "user", content: userPrompt }],
-      { capabilities: ["judge"], systemPrompt: JUDGE_SYSTEM_PROMPT }
+      { capabilities: ["chat"], systemPrompt: JUDGE_SYSTEM_PROMPT }
     );
     const rawText = (result.content || "").trim();
     const jsonStart = rawText.indexOf("{");

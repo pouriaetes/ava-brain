@@ -29,7 +29,7 @@ export class SessionManager {
       // Create new session
       const sessionId = this.generateSessionId();
       await this.db
-        .prepare("INSERT INTO sessions (id, chat_id, started_at, last_active_at, summary, status) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'active')")
+        .prepare("INSERT INTO sessions (id, chat_id, started_at, last_active_at, summary, status, mode) VALUES (?, ?, datetime('now'), datetime('now'), ?, 'active', 'chat')")
         .bind(sessionId, chatId, "")
         .run();
 
@@ -40,6 +40,7 @@ export class SessionManager {
         last_active_at: new Date().toISOString(),
         summary: "",
         status: "active",
+        mode: "chat",
       };
     } catch (error) {
       await this.logger.error(this.db, "sessions", "session_error", { chatId, error: error.message });
@@ -57,6 +58,19 @@ export class SessionManager {
       await this.logger.info(this.db, "sessions", "summary_updated", { sessionId });
     } catch (error) {
       await this.logger.error(this.db, "sessions", "summary_update_error", { sessionId, error: error.message });
+    }
+  }
+
+  async updateSessionMode(sessionId, mode) {
+    try {
+      await this.db
+        .prepare("UPDATE sessions SET mode = ? WHERE id = ?")
+        .bind(mode, sessionId)
+        .run();
+
+      await this.logger.info(this.db, "sessions", "mode_updated", { sessionId, mode });
+    } catch (error) {
+      await this.logger.error(this.db, "sessions", "mode_update_error", { sessionId, error: error.message });
     }
   }
 

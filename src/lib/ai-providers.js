@@ -100,16 +100,36 @@ export class WorkersAIAdapter {
 
   async health() {
     try {
-      await this.ai.run(this.model, { messages: [{ role: "user", content: "test" }], max_tokens: 1 });
+      const caps = JSON.parse(this.config.capabilities || "[]");
+      const hasChat = caps.includes("chat");
+      const hasTTS = caps.includes("tts");
+      const hasSTT = caps.includes("stt");
+      const hasImageGen = caps.includes("image_gen");
+      if (hasChat) {
+        await this.ai.run(this.model, { messages: [{ role: "user", content: "test" }], max_tokens: 1 });
+      } else if (hasTTS) {
+        await this.ai.run(this.model, { prompt: "test", lang: "en" });
+      } else if (hasSTT) {
+        return {
+          status: "unknown",
+          note: "STT models are not health-checked automatically; verify manually with a real audio sample.",
+          last_check: (/* @__PURE__ */ new Date()).toISOString(),
+          provider: "workers_ai"
+        };
+      } else if (hasImageGen) {
+        await this.ai.run(this.model, { prompt: "test" });
+      } else {
+        await this.ai.run(this.model, { messages: [{ role: "user", content: "test" }], max_tokens: 1 });
+      }
       return {
         status: "healthy",
         last_check: (/* @__PURE__ */ new Date()).toISOString(),
         provider: "workers_ai"
       };
-    } catch (error) {
+    } catch (error3) {
       return {
         status: "unhealthy",
-        error: error.message,
+        error: error3.message,
         last_check: (/* @__PURE__ */ new Date()).toISOString(),
         provider: "workers_ai"
       };
@@ -224,7 +244,14 @@ export class GeminiAdapter {
       },
       body: JSON.stringify(requestBody)
     });
-    if (!response.ok) throw new Error(`Gemini API error ${response.status}`);
+    if (!response.ok) {
+      let errorDetail = "";
+      try {
+        errorDetail = (await response.text()).substring(0, 500);
+      } catch {
+      }
+      throw new Error(`Gemini API error ${response.status}${errorDetail ? ": " + errorDetail : ""}`);
+    }
     const data = await response.json();
     return {
       content: data.candidates?.[0]?.content?.parts?.[0]?.text || "",
@@ -269,7 +296,14 @@ export class OpenAICompatibleAdapter {
       }),
     });
 
-    if (!response.ok) throw new Error(`OpenAI-compatible API error ${response.status}`);
+    if (!response.ok) {
+      let errorDetail = "";
+      try {
+        errorDetail = (await response.text()).substring(0, 500);
+      } catch {
+      }
+      throw new Error(`OpenAI-compatible API error ${response.status}${errorDetail ? ": " + errorDetail : ""}`);
+    }
     const data = await response.json();
     return {
       content: data.choices?.[0]?.message?.content || "",
@@ -285,6 +319,58 @@ export class OpenAICompatibleAdapter {
       return { status: "healthy", provider: "openai_compatible" };
     } catch (error) {
       return { status: "unhealthy", error: error.message, provider: "openai_compatible" };
+    }
+  }
+}
+
+export class TavilyAdapter {
+  constructor(config, crypto, logger) {
+    this.config = config;
+    this.crypto = crypto;
+    this.logger = logger;
+    this.apiKey = config.apiKey;
+  }
+
+  async webSearch(query, options = {}) {
+    if (!this.apiKey) throw new Error("Tavily API key not configured");
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: this.apiKey,
+        query,
+        search_depth: "basic",
+        max_results: options.maxResults || 5,
+        include_answer: false
+      })
+    });
+    if (!response.ok) {
+      let errorDetail = "";
+      try {
+        errorDetail = (await response.text()).substring(0, 500);
+      } catch {
+      }
+      throw new Error(`Tavily API error ${response.status}${errorDetail ? ": " + errorDetail : ""}`);
+    }
+    const data = await response.json();
+    const results = (data.results || []).map((r) => ({
+      title: r.title || "",
+      url: r.url || "",
+      content: (r.content || "").substring(0, 500)
+    }));
+    return {
+      results,
+      provider: "tavily"
+    };
+  }
+
+  async health() {
+    if (!this.apiKey) return { status: "unavailable", error: "API key missing", provider: "tavily" };
+    try {
+      await this.webSearch("test", { maxResults: 1 });
+      return { status: "healthy", provider: "tavily" };
+    } catch (error) {
+      return { status: "unhealthy", error: error.message, provider: "tavily" };
     }
   }
 }

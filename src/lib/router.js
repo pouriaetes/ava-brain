@@ -14,6 +14,9 @@ You must specify at least the necessary tables in tables_to_read, no more.
 If the message was about a temporary project (near deadline, informal tone) and the user hasn't created a similar project before, intent=project_create and action=create_project with metadata.temporary=true.
 If uncertainty is high, set needs_user_confirmation=true and fill missing_fields.
 If the user asks to be reminded about a personal task at a specific time/date or repeatedly, use intent=reminder_create, not routine_create.
+If the user asks you to search the internet, find current information online, or look something up on the web (e.g. "search for X", "find the latest news about X", "در نت بگرد", "جستجو کن", "پیدا کن در اینترنت"), use intent=web_search_request. Do not set any actions for this intent; it is handled directly.
+If the user shares a URL or link and asks you to read, summarize, or explain it, use intent=url_summary_request. Do not set any actions for this intent; it is handled directly.
+If the user asks for a recurring scheduled web search or news update (e.g. "every day at 5 find news about X and send it to me", "هر روز ساعت ۵ اخبار X رو پیدا کن و بفرست"), use intent=routine_create with action create_routine where action_type="news_ai", schedule_type matches the requested recurrence, local_time is the requested time in HH:MM 24-hour Tehran time, and payload={"query": "<the search topic in the user's own words>"}.
 This includes requests that ask Ava to send a message, say something, or notify the user at a time/day/recurrence, such as "هر روز ساعت X بهم پیام بده", "بهم بگو", "یادم بنداز", "فردا ساعت ...", or "هر شنبه ...".
 
 Allowed intents:
@@ -38,6 +41,8 @@ Allowed intents:
 - followup_response
 - image_request
 - voice_reply_request
+- web_search_request
+- url_summary_request
 
 Allowed actions:
 - create_reminder
@@ -110,8 +115,26 @@ export class Router {
     const text = message.text?.toLowerCase() || "";
     const rawText = message.text || "";
 
-    // Simple pattern matching for common intents
-    if (text.includes("remember") || text.includes("note")) {
+    const keywordRows = (await this.db.prepare(
+      "SELECT key, value FROM settings WHERE key IN ('keyword_note_triggers','keyword_reminder_triggers','keyword_project_trigger','keyword_project_create_triggers','keyword_project_exclude_triggers','keyword_voice_reply_triggers','keyword_image_request_triggers','keyword_help_triggers')"
+    ).all()).results || [];
+    const keywordMap = {};
+    for (const row of keywordRows) {
+      keywordMap[row.key] = row.value;
+    }
+    const parseKeywordSetting = (raw, fallbackArr) => {
+      if (!raw || typeof raw !== "string" || raw.trim() === "") return fallbackArr;
+      return raw.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
+    };
+    const noteTriggers = parseKeywordSetting(keywordMap.keyword_note_triggers, ["remember", "note"]);
+    const reminderTriggers = parseKeywordSetting(keywordMap.keyword_reminder_triggers, ["remind", "reminder", "یادآوری", "یادم بنداز", "یادام بنداز", "یادت باشه", "یادت نره"]);
+    const projectTrigger = parseKeywordSetting(keywordMap.keyword_project_trigger, ["project"]);
+    const projectCreateTriggers = parseKeywordSetting(keywordMap.keyword_project_create_triggers, ["create", "new project", "start"]);
+    const projectExcludeTriggers = parseKeywordSetting(keywordMap.keyword_project_exclude_triggers, ["update", "show", "list"]);
+    const voiceReplyTriggers = parseKeywordSetting(keywordMap.keyword_voice_reply_triggers, ["با صدا جواب بده", "جواب صوتی", "ویس بده", "ویس جواب", "voice reply", "reply with voice", "answer with voice", "send voice"]);
+    const imageRequestTriggers = parseKeywordSetting(keywordMap.keyword_image_request_triggers, ["عکس بساز", "تصویر بساز", "عکس بکش", "نقاشی بکش", "generate image", "create an image", "draw me", "draw a"]);
+    const helpTriggers = parseKeywordSetting(keywordMap.keyword_help_triggers, ["help", "/help"]);
+    if (noteTriggers.some((kw) => text.includes(kw))) {
       return {
         intent: "ephemeral_note",
         confidence: 0.8,
@@ -125,16 +148,7 @@ export class Router {
       };
     }
 
-    if (
-      text.includes("remind") ||
-      text.includes("reminder") ||
-      text.includes("یادآوری") ||
-      text.includes("یادآوری") ||
-      text.includes("یادم بنداز") ||
-      text.includes("یادام بنداز") ||
-      text.includes("یادت باشه") ||
-      text.includes("یادت نره")
-    ) {
+    if (reminderTriggers.some((kw) => text.includes(kw))) {
       return {
         intent: "reminder_create",
         confidence: 0.8,
@@ -167,9 +181,22 @@ export class Router {
       };
     }
 
-    if (text.includes("project")) {
-      // Check if it sounds like creating a new project
-      if (text.includes("create") || text.includes("new project") || text.includes("start") || !text.includes("update") && !text.includes("show") && !text.includes("list")) {
+    const urlMatch = rawText.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      return {
+        intent: "url_summary_request",
+        confidence: 0.9,
+        language: /[؀-ۿ]/.test(rawText) ? "fa" : "en",
+        needs_user_confirmation: false,
+        missing_fields: [],
+        tables_to_read: [],
+        actions: [],
+        memory_to_save: [],
+        response_hint: ""
+      };
+    }
+    if (projectTrigger.some((kw) => text.includes(kw))) {
+      if (projectCreateTriggers.some((kw) => text.includes(kw)) || !projectExcludeTriggers.some((kw) => text.includes(kw))) {
         return {
           intent: "project_create",
           confidence: 0.6,
@@ -184,7 +211,7 @@ export class Router {
       }
     }
 
-    if (text.includes("با صدا جواب بده") || text.includes("جواب صوتی") || text.includes("ویس بده") || text.includes("ویس جواب") || text.includes("voice reply") || text.includes("reply with voice") || text.includes("answer with voice") || text.includes("send voice")) {
+    if (voiceReplyTriggers.some((kw) => text.includes(kw))) {
       return {
         intent: "voice_reply_request",
         confidence: 0.6,
@@ -197,7 +224,7 @@ export class Router {
         response_hint: ""
       };
     }
-    if (text.includes("عکس بساز") || text.includes("تصویر بساز") || text.includes("عکس بکش") || text.includes("نقاشی بکش") || text.includes("generate image") || text.includes("create an image") || text.includes("draw me") || text.includes("draw a")) {
+    if (imageRequestTriggers.some((kw) => text.includes(kw))) {
       return {
         intent: "image_request",
         confidence: 0.7,
@@ -210,7 +237,7 @@ export class Router {
         response_hint: ""
       };
     }
-    if (text.includes("help") || text.includes("/help")) {
+    if (helpTriggers.some((kw) => text.includes(kw))) {
       return {
         intent: "admin_help",
         confidence: 0.9,
@@ -285,6 +312,8 @@ Analyze this message and return ONLY the JSON object described in your instructi
       "routine_update": ["routines"],
       "routine_query": ["routines"],
       "news_config": [],
+      "web_search_request": [],
+      "url_summary_request": [],
       "query_memory": ["memory_long_term", "memory_short_term"],
       "delete_request": ["memory_short_term"],
       "admin_help": [],
@@ -343,7 +372,7 @@ Analyze this message and return ONLY the JSON object described in your instructi
     if (typeof output.response_hint !== "string") {
       output.response_hint = "";
     }
-    var allowedIntents = ["general_chat", "profile_update", "ephemeral_note", "reminder_create", "reminder_query", "event_create", "event_query", "project_create", "project_update", "project_query", "project_complete", "routine_create", "routine_update", "routine_query", "news_config", "query_memory", "delete_request", "admin_help", "followup_response", "image_request", "voice_reply_request"];
+    var allowedIntents = ["general_chat", "profile_update", "ephemeral_note", "reminder_create", "reminder_query", "event_create", "event_query", "project_create", "project_update", "project_query", "project_complete", "routine_create", "routine_update", "routine_query", "news_config", "query_memory", "delete_request", "admin_help", "followup_response", "image_request", "voice_reply_request", "web_search_request", "url_summary_request"];
     if (!allowedIntents.includes(output.intent)) {
       output.intent = "general_chat";
       output.actions = [];

@@ -31,6 +31,7 @@ export class SessionManager {
         if (active.mode === 'task' && minutesSinceLastMessage > TASK_SESSION_TIMEOUT_MINUTES) {
           await this.updateSessionMode(active.id, 'chat');
           await this.updateSessionState(active.id, { expired: true, reason: 'timeout' });
+          active.mode = "chat";
         }
         
         await this.db

@@ -34,6 +34,13 @@ export default {
         await handleRoutines(config, env, ctx);
         await handleProjectFollowups(config, env, ctx);
         await handleCheckin(config, env, ctx);
+        try {
+          const providerHealthManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+          await providerHealthManager.initialize();
+          await providerHealthManager.cleanupFailedProviders();
+        } catch (healthCleanupError) {
+          await log(env.DB, "warn", "provider_health_cleanup_failed", { error: healthCleanupError.message });
+        }
       } else if (cron === "0 4 * * *") {
         // Daily 4 AM UTC: cleanup + nightly summary
         await handleCleanup(config, env, ctx);

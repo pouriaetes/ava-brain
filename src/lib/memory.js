@@ -370,7 +370,10 @@ ${entryList}`;
 
     // Get short-term memory
     const shortTerm = await this.getShortTerm(chatId, 15);
-    const REMINDER_KEYWORDS = ["remind", "reminder", "یادآور", "یاداور"];
+    const memoryExcludeSetting = await this.db.prepare("SELECT value FROM settings WHERE key = 'keyword_memory_exclude_triggers'").first();
+    const REMINDER_KEYWORDS = memoryExcludeSetting && memoryExcludeSetting.value && memoryExcludeSetting.value.trim() !== ""
+      ? memoryExcludeSetting.value.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0)
+      : ["remind", "reminder", "یادآور", "یاداور"];
     const filteredShortTerm = shortTerm.filter((item) => {
       const haystack = `${item.type || ""} ${item.content || ""}`.toLowerCase();
       return !REMINDER_KEYWORDS.some((kw) => haystack.includes(kw));
@@ -383,10 +386,10 @@ ${entryList}`;
     }
 
     // Get profile facts for personalization
-    const profileFacts = await this.getProfileFacts({ isPermanent: 1 });
+    const profileFacts = await this.getProfileFacts({ isPermanent: true });
     if (profileFacts.length > 0) {
       contextParts.push("Profile information:");
-      for (const fact of profileFacts.slice(0, 5)) {
+      for (const fact of profileFacts) {
         contextParts.push(`- ${fact.category}: ${fact.fact_key} = ${fact.fact_value}`);
       }
     }

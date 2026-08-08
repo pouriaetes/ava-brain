@@ -110,7 +110,10 @@ ava-brain/
 │   │   ├── reminders.js            # Reminders & events
 │   │   ├── routines.js             # Dynamic routines
 │   │   ├── router.js               # Intent detection
-│   │   └── validator.js            # Action validation
+│   │   ├── validator.js            # Action validation
+│   │   ├── judge.js                # Message classification (task vs memory)
+│   │   ├── sessions.js              # Session state handling (mode, timestamps, JSON state)
+│   │   └── websearch.js            # Web search utility (supports Tavily provider)
 │   ├── admin/                      # Admin panel handlers
 │   │   ├── dashboard.js
 │   │   ├── settings.js
@@ -127,6 +130,16 @@ ava-brain/
 │       ├── cleanup.js
 │       └── nightly-summary.js
 ```
+
+## Database Schema
+
+### Migrations
+- `0001_init.sql` – Initial schema creation.
+- `0002_add_session_mode.sql` – Adds `mode` column to `sessions` (default `'chat'`).
+- `0002_keyword_filter_settings.sql` – Inserts default keyword trigger settings for notes, reminders, projects, voice replies, image requests, help, etc.
+- `0003_add_session_columns.sql` – Adds `last_message_at` and `state_json` columns to `sessions` for improved session state handling.
+- `0004_add_judge_logs.sql` – Creates `judge_logs` table to store classification of incoming messages (task vs memory) and related metadata.
+- `0005_add_tavily_provider_kind.sql` – Extends `api_providers` to support a new `tavily` provider kind for web search.
 
 ## Database Schema
 

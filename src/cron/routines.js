@@ -68,6 +68,30 @@ export async function handleRoutines(config, env, ctx) {
 }
 
 async function handleNewsRoutine(routine, payload, config, env, aiManager) {
+  if (payload.query) {
+    try {
+      const searchResult = await aiManager.webSearch(payload.query, { capabilities: ["web_search"] });
+      const results = searchResult.results || [];
+      if (results.length === 0) {
+        await sendTelegramMessage(config, config.OWNER_TELEGRAM_ID, `No new results found for "${payload.query}".`);
+        return;
+      }
+      const sourcesText = results
+        .map((r, i) => `[${i + 1}] ${r.title} - ${r.url}\n${r.content}`)
+        .join("\n\n");
+      const searchSummaryPrompt = `Summarize these search results about "${payload.query}" into a short news-style update in the user's language. Cite sources as [1], [2] with URLs at the end.\n\n${sourcesText}`;
+      const aiResponse = await aiManager.chat(
+        [{ role: "user", content: searchSummaryPrompt }],
+        { capabilities: ["chat"] }
+      );
+      const message = `<b>📰 News Update: ${payload.query}</b>\n\n${aiResponse.content || "No summary available."}`;
+      await sendTelegramMessage(config, config.OWNER_TELEGRAM_ID, message, { parse_mode: "HTML" });
+    } catch (error) {
+      await log(env.DB, "error", "news_query_search_failed", { error: error.message });
+      await sendTelegramMessage(config, config.OWNER_TELEGRAM_ID, "News search could not be completed. I will try again next time.");
+    }
+    return;
+  }
   const sources = payload.sources || [];
   if (sources.length === 0) {
     await log(env.DB, "warn", "news_routine_no_sources", { routineId: routine.id });
@@ -76,13 +100,17 @@ async function handleNewsRoutine(routine, payload, config, env, aiManager) {
 
   let articles = [];
   for (const source of sources) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     try {
-      const feed = await fetch(source, { timeout: 15000 });
+      const feed = await fetch(source, { signal: controller.signal });
       const text = await feed.text();
       articles.push({ source, content: text.substring(0, 2000) });
     } catch (error) {
       await log(env.DB, "warn", "news_source_failed", { source, error: error.message });
       continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

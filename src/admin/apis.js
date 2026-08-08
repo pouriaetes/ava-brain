@@ -60,7 +60,7 @@ async function addProvider(db, formData, config) {
   if (formData.get("cap_image_gen")) selectedCapabilities.push("image_gen");
   if (formData.get("cap_stt")) selectedCapabilities.push("stt");
   if (formData.get("cap_tts")) selectedCapabilities.push("tts");
-  const capabilities = JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
+  const capabilities = kind === "tavily" ? JSON.stringify(["web_search"]) : JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
 
   let apiKeyEnc = "";
   if (apiKey && config.MASTER_KEY) {
@@ -71,7 +71,7 @@ async function addProvider(db, formData, config) {
     .prepare(
       "INSERT INTO api_providers (name, kind, base_url, model, api_key_enc, enabled, priority, timeout_ms, max_retries, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
-    .bind(name, kind, baseUrl, model, apiKeyEnc, 1, priority, timeoutMs, maxRetries, capabilities)
+    .bind(name, kind, baseUrl, model || "tavily-search", apiKeyEnc, 1, priority, timeoutMs, maxRetries, capabilities)
     .run();
 
   await log(db, "info", "provider_added", { name, kind });
@@ -95,7 +95,7 @@ async function editProvider(db, formData, config) {
   if (formData.get("cap_image_gen")) selectedCapabilities.push("image_gen");
   if (formData.get("cap_stt")) selectedCapabilities.push("stt");
   if (formData.get("cap_tts")) selectedCapabilities.push("tts");
-  const capabilities = JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
+  const capabilities = kind === "tavily" ? JSON.stringify(["web_search"]) : JSON.stringify(selectedCapabilities.length > 0 ? selectedCapabilities : ["chat"]);
   const enabled = formData.get("enabled") === "on" ? 1 : 0;
 
   const fields = ["name = ?", "kind = ?", "base_url = ?", "model = ?", "priority = ?", "timeout_ms = ?", "max_retries = ?", "capabilities = ?", "enabled = ?"];
@@ -186,6 +186,7 @@ function renderProvidersList(providers) {
               <option value="workers_ai">Workers AI</option>
               <option value="gemini">Gemini</option>
               <option value="openai_compatible">OpenAI Compatible</option>
+              <option value="tavily">Tavily (Web Search)</option>
             </select>
           </div>
         </div>
@@ -306,6 +307,7 @@ function renderProvidersList(providers) {
                   <option value="workers_ai" ${provider.kind === "workers_ai" ? "selected" : ""}>Workers AI</option>
                   <option value="gemini" ${provider.kind === "gemini" ? "selected" : ""}>Gemini</option>
                   <option value="openai_compatible" ${provider.kind === "openai_compatible" ? "selected" : ""}>OpenAI Compatible</option>
+                  <option value="tavily" ${provider.kind === "tavily" ? "selected" : ""}>Tavily (Web Search)</option>
                 </select>
               </div>
             </div>

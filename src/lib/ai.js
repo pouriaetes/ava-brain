@@ -1,7 +1,7 @@
 // AI Provider Manager with fallback, health monitoring, and timeout handling
 // Uses the ai-providers.js adapters to provide unified interface across providers
 
-import { WorkersAIAdapter, GeminiAdapter, OpenAICompatibleAdapter } from "./ai-providers.js";
+import { WorkersAIAdapter, GeminiAdapter, OpenAICompatibleAdapter, TavilyAdapter } from "./ai-providers.js";
 
 export class AIProviderManager {
   constructor(config, crypto, logger, db) {
@@ -39,6 +39,7 @@ export class AIProviderManager {
       workers_ai: WorkersAIAdapter,
       gemini: GeminiAdapter,
       openai_compatible: OpenAICompatibleAdapter,
+      tavily: TavilyAdapter,
     };
 
     const AdapterClass = adapterMap[kind];
@@ -228,6 +229,39 @@ export class AIProviderManager {
     }
 
     throw new Error("All AI providers failed for news");
+  }
+
+  async webSearch(query, options = {}) {
+    if (!this.initialized) {
+      throw new Error("AI Provider Manager not initialized");
+    }
+    const suitableProviders = this.providers.filter((p) => {
+      const caps = JSON.parse(p.capabilities || "[]");
+      return caps.includes("web_search") && p.enabled;
+    });
+    if (suitableProviders.length === 0) {
+      throw new Error("No suitable AI providers available for web search");
+    }
+    const orderedProviders = suitableProviders.sort((a, b) => a.priority - b.priority);
+    for (const provider of orderedProviders) {
+      try {
+        const adapter = this.adapters[provider.id];
+        if (!adapter || typeof adapter.webSearch !== "function") continue;
+        const result = await this.withTimeout(
+          adapter.webSearch(query, options),
+          provider.timeout_ms || 3e4
+        );
+        await this.updateProviderHealth(provider.id, { status: "healthy", last_success: Date.now() });
+        return result;
+      } catch (error) {
+        await this.logger.error(this.db, "ai_provider_manager", "web_search_error", {
+          provider: provider.name,
+          error: error.message
+        });
+        continue;
+      }
+    }
+    throw new Error("All AI providers failed for web search");
   }
 
   async followupResponse(context, options = {}) {

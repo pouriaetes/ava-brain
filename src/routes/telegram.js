@@ -12,6 +12,7 @@ import { SessionManager } from "../lib/sessions.js";
 import { AIProviderManager } from "../lib/ai.js";
 import { encrypt, decrypt } from "../lib/crypto.js";
 import { judgeMessage, isExplicitTaskCommand, hasExplicitCommand } from "../lib/judge.js";
+import { fetchUrlContent } from "../lib/websearch.js";
 
 function toEnglishDigits(input) {
   return String(input || "")
@@ -361,19 +362,10 @@ export async function handleTelegramWebhook(request, env, config, ctx) {
     }
     
     let judgeCategory;
-    // Change 1 & 8: Check explicit commands first, then time-based routing
+    // Always run Judge first for every incoming message unless explicit task command is used
     if (explicitTask || hasExplicit) {
-      // Explicit task command - always route to task
       judgeCategory = "task";
-    } else if (currentMode === "chat" && minutesSinceLastMessage <= 30) {
-      // Change 1: Within 30 minutes of last message in chat mode - direct to memory
-      judgeCategory = "memory";
-    } else if (currentMode === "task") {
-      // In task mode - always run Judge to check if user wants to continue task or switch to chat
-      const judgeResult = await judgeMessage(telegramMessage, session?.summary || "", config, env, judgeProviderId);
-      judgeCategory = judgeResult.category;
     } else {
-      // More than 30 minutes since last message or first message - run Judge
       const judgeResult = await judgeMessage(telegramMessage, session?.summary || "", config, env, judgeProviderId);
       judgeCategory = judgeResult.category;
     }
@@ -531,6 +523,49 @@ ${finalMemoryContext}`;
         responseText = "Image generation is currently having issues, please try again later.";
         await log(env.DB, "warn", "image_generation_failed", { error: imageError.message });
       }
+    } else if (routing.intent === "web_search_request") {
+      try {
+        const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+        await aiManager.initialize();
+        const searchResult = await aiManager.webSearch(message.text || "", { capabilities: ["web_search"] });
+        const results = searchResult.results || [];
+        if (results.length === 0) {
+          responseText = "I searched but couldn't find relevant results.";
+        } else {
+          const sourcesText = results
+            .map((r, i) => `[${i + 1}] ${r.title} - ${r.url}\n${r.content}`)
+            .join("\n\n");
+          const searchSummaryPrompt = `You are Ava. Using ONLY the search results below, give the user a concise, well-organized answer in their own language. Cite sources as [1], [2], etc. with their URLs at the end.\n\nUser's question: "${message.text || ""}"\n\nSearch results:\n${sourcesText}`;
+          const aiResponse = await aiManager.chat(
+            [{ role: "user", content: searchSummaryPrompt }],
+            { capabilities: ["chat"] }
+          );
+          responseText = aiResponse.content || "I found results but couldn't summarize them.";
+        }
+      } catch (searchError) {
+        responseText = "Web search is currently unavailable, please try again later.";
+        await log(env.DB, "warn", "web_search_failed", { error: searchError.message });
+      }
+    } else if (routing.intent === "url_summary_request") {
+      try {
+        const urlMatch = (message.text || "").match(/https?:\/\/[^\s]+/i);
+        if (!urlMatch) {
+          responseText = "I couldn't find a link in your message.";
+        } else {
+          const pageContent = await fetchUrlContent(urlMatch[0]);
+          const aiManager = new AIProviderManager(config, { encrypt, decrypt }, { info: log.info, error: log.error, warn: log.warn }, env.DB);
+          await aiManager.initialize();
+          const urlSummaryPrompt = `You are Ava. Summarize the following web page content concisely for the user, in their own language. Focus on the key points only.\n\nPage content:\n${pageContent}`;
+          const aiResponse = await aiManager.chat(
+            [{ role: "user", content: urlSummaryPrompt }],
+            { capabilities: ["chat"] }
+          );
+          responseText = aiResponse.content || "I couldn't summarize that page.";
+        }
+      } catch (urlError) {
+        responseText = "I couldn't read that link right now, please try again later.";
+        await log(env.DB, "warn", "url_summary_failed", { error: urlError.message });
+      }
     } else if (actionResults.some(r => r?.success)) {
       responseText = "Done.";
     } else {
@@ -619,6 +654,15 @@ function parseReminderJson(text) {
   }
 }
 
+async function getConfiguredTimezone(env) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first();
+    return row?.value || "Asia/Tehran";
+  } catch {
+    return "Asia/Tehran";
+  }
+}
+
 async function extractReminderFromMessage(config, env, messageText) {
   try {
     const aiManager = new AIProviderManager(
@@ -632,8 +676,9 @@ async function extractReminderFromMessage(config, env, messageText) {
 
     const now = new Date();
     const utcIso = now.toISOString();
+    const configuredTimezone = await getConfiguredTimezone(env);
     const tehranLocal = now.toLocaleString("en-US", {
-      timeZone: "Asia/Tehran",
+      timeZone: configuredTimezone,
       weekday: "long",
       year: "numeric",
       month: "2-digit",
@@ -646,16 +691,19 @@ async function extractReminderFromMessage(config, env, messageText) {
     const systemPrompt = [
       "You are the reminder extraction module for Ava.",
       `Current UTC: ${utcIso}`,
-      `Current Tehran time: ${tehranLocal}`,
+      `Current time (${configuredTimezone}): ${tehranLocal}`,
       "Extract exactly one reminder from the user's message.",
       "Return ONLY compact JSON, no markdown.",
       `Schema: {"ok":true,"title":"short label","description":"task text","schedule_type":"once|daily|weekly|monthly|hourly|interval","remind_at_utc":"ISO UTC string","local_time":"HH:MM or empty","days_of_week":[0-6],"interval_hours":number|null,"delete_after_done":boolean}`,
       "Rules:",
       "- Use schedule_type=once for a one-time reminder; delete_after_done=true.",
       "- Use schedule_type=daily for every day, weekly for every week, monthly for every month, hourly for every hour, interval for every N hours.",
-      "- If a specific date has no explicit time, use 08:00 Tehran time.",
-      "- remind_at_utc must be the next future occurrence, converted from Asia/Tehran to UTC.",
+      `- If a specific date has no explicit time, use 08:00 local time (${configuredTimezone}).`,
+      `- remind_at_utc must be the next future occurrence, converted from ${configuredTimezone} to UTC.`,
       "- For weekly, Sunday=0.",
+      `- If relative time like 'X minutes later/from now' is provided, compute from current time (${configuredTimezone}) and convert to UTC.`,
+      "- Reject invalid hours/minutes (hour must be 0..23, minute 0..59).",
+      "- If time expression is invalid (e.g. impossible hour), return {\"ok\":false,\"missing\":\"time\"}.",
       "- If there is not enough information to determine at least a plausible time, return {\"ok\":false,\"missing\":\"time\"}."
     ].join("\n");
 
@@ -780,7 +828,7 @@ async function handleReminderCreate(config, env, message, routing) {
       delete_after_done: r.delete_after_done
     });
 
-    await reminderManager.createReminder({
+    const createResult = await reminderManager.createReminder({
       title: r.title || text.substring(0, 100),
       description: r.description || text,
       remindAtUtc: r.remind_at_utc,
@@ -788,6 +836,22 @@ async function handleReminderCreate(config, env, message, routing) {
       priority: "medium",
       sourceMessageId: String(message?.message_id || "")
     });
+
+    if (!createResult?.success || !createResult?.id) {
+      await log.error(env.DB, "telegram", "reminder_create_not_persisted", {
+        messageId: message?.message_id,
+        chatId: message?.chat?.id,
+        remindAtUtc: r.remind_at_utc,
+        repeatRule
+      });
+
+      return {
+        message:
+          language === "fa"
+            ? "ثبت یادآوری انجام نشد؛ دوباره تلاش کن."
+            : "Reminder was not saved; please try again."
+      };
+    }
 
     return {
       message:

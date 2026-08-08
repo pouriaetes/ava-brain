@@ -37,7 +37,7 @@ Return ONLY the JSON object described in your instructions.`;
     
     const result = await aiManager.chat(
       [{ role: "user", content: userPrompt }],
-      { capabilities: ["chat"], systemPrompt: JUDGE_SYSTEM_PROMPT }
+      { capabilities: ["judge"], systemPrompt: JUDGE_SYSTEM_PROMPT }
     );
     const rawText = (result.content || "").trim();
     const jsonStart = rawText.indexOf("{");
@@ -87,8 +87,15 @@ Return ONLY the JSON object described in your instructions.`;
     // Try fallback: check for explicit keywords
     const text = (message.text || "").toLowerCase();
     let fallbackCategory = "memory";
-    
-    if (/(remind|reminder|یادآوری|یادم بنداز|task|project|deadline|event|schedule)/i.test(text)) {
+    let judgeFallbackTriggers = ["remind", "reminder", "یادآوری", "یادم بنداز", "task", "project", "deadline", "event", "schedule"];
+    try {
+      const judgeFallbackSetting = await env.DB.prepare("SELECT value FROM settings WHERE key = 'keyword_judge_fallback_triggers'").first();
+      if (judgeFallbackSetting && judgeFallbackSetting.value && judgeFallbackSetting.value.trim() !== "") {
+        judgeFallbackTriggers = judgeFallbackSetting.value.split(",").map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
+      }
+    } catch (settingsError) {
+    }
+    if (judgeFallbackTriggers.some((kw) => text.includes(kw))) {
       fallbackCategory = "task";
     }
     

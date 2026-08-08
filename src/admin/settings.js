@@ -27,6 +27,16 @@ export async function handleSettingsPage(request, env, config) {
       checkin_enabled: formData.get("checkin_enabled") === "on" ? "true" : "false",
       nightly_summary_enabled: formData.get("nightly_summary_enabled") === "on" ? "true" : "false",
       judge_provider_id: formData.get("judge_provider_id") || "",
+      keyword_note_triggers: formData.get("keyword_note_triggers") || "",
+      keyword_reminder_triggers: formData.get("keyword_reminder_triggers") || "",
+      keyword_project_trigger: formData.get("keyword_project_trigger") || "",
+      keyword_project_create_triggers: formData.get("keyword_project_create_triggers") || "",
+      keyword_project_exclude_triggers: formData.get("keyword_project_exclude_triggers") || "",
+      keyword_voice_reply_triggers: formData.get("keyword_voice_reply_triggers") || "",
+      keyword_image_request_triggers: formData.get("keyword_image_request_triggers") || "",
+      keyword_help_triggers: formData.get("keyword_help_triggers") || "",
+      keyword_memory_exclude_triggers: formData.get("keyword_memory_exclude_triggers") || "",
+      keyword_judge_fallback_triggers: formData.get("keyword_judge_fallback_triggers") || "",
     };
 
     for (const [key, value] of Object.entries(updates)) {
@@ -106,6 +116,39 @@ function renderSettingsForm(settings, providers) {
           <input type="checkbox" name="nightly_summary_enabled" ${settings.nightly_summary_enabled === "true" ? "checked" : ""}>
           Enable nightly summary
         </label>
+
+        <h3 style="margin-top:24px;">Keyword Filters (Router)</h3>
+        <small>Comma-separated words/phrases. Leave a field empty to use the built-in default list. These control how Ava detects intent without needing a code change.</small>
+
+        <label>Note / Remember Trigger Words</label>
+        <textarea name="keyword_note_triggers" rows="2">${escHtml(settings.keyword_note_triggers || "")}</textarea>
+
+        <label>Reminder Trigger Words</label>
+        <textarea name="keyword_reminder_triggers" rows="2">${escHtml(settings.keyword_reminder_triggers || "")}</textarea>
+
+        <label>Project Trigger Word</label>
+        <textarea name="keyword_project_trigger" rows="1">${escHtml(settings.keyword_project_trigger || "")}</textarea>
+
+        <label>Project Create Trigger Words</label>
+        <textarea name="keyword_project_create_triggers" rows="2">${escHtml(settings.keyword_project_create_triggers || "")}</textarea>
+
+        <label>Project Exclude Trigger Words (skip create-detection when these appear)</label>
+        <textarea name="keyword_project_exclude_triggers" rows="2">${escHtml(settings.keyword_project_exclude_triggers || "")}</textarea>
+
+        <label>Voice Reply Trigger Words</label>
+        <textarea name="keyword_voice_reply_triggers" rows="2">${escHtml(settings.keyword_voice_reply_triggers || "")}</textarea>
+
+        <label>Image Request Trigger Words</label>
+        <textarea name="keyword_image_request_triggers" rows="2">${escHtml(settings.keyword_image_request_triggers || "")}</textarea>
+
+        <label>Help Trigger Words</label>
+        <textarea name="keyword_help_triggers" rows="2">${escHtml(settings.keyword_help_triggers || "")}</textarea>
+
+        <label>Memory Context Exclude Words (hide these short-term memory items from AI context)</label>
+        <textarea name="keyword_memory_exclude_triggers" rows="2">${escHtml(settings.keyword_memory_exclude_triggers || "")}</textarea>
+
+        <label>Judge Fallback Trigger Words (used only if the AI classifier fails)</label>
+        <textarea name="keyword_judge_fallback_triggers" rows="2">${escHtml(settings.keyword_judge_fallback_triggers || "")}</textarea>
 
         <button type="submit">Save Settings</button>
       </form>

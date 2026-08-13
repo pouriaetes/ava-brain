@@ -1,0 +1,25 @@
+# Ava Brain - Cloudflare Worker Configuration
+
+name = "ava-brain"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "ava_brain_db"
+database_id = "your-database-id-here"
+
+# Cron triggers
+[triggers]
+crons = ["*/5 * * * *", "0 4 * * *"]
+
+# Environment variables (replace with your actual values)
+[vars]
+ADMIN_PASSWORD = "your-admin-password"
+TELEGRAM_BOT_TOKEN = "your-telegram-bot-token"
+TELEGRAM_ALLOWED_USERS = "user1,user2"
+AI_PROVIDER = "openai"
+AI_API_KEY = "your-ai-api-key"
+AI_MODEL = "gpt-4o-mini"

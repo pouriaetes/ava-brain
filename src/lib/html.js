@@ -78,32 +78,32 @@ const tokens = {
     normal: "200ms ease",
   },
 
-  // Dark mode colors - Improved contrast
+  // Dark mode colors - Pure Black with high contrast
   darkColors: {
     bg: {
-      primary: "#0F172A", // Slate 900
-      secondary: "#1E293B", // Slate 800
-      tertiary: "#334155", // Slate 700
+      primary: "#000000", // Pure black
+      secondary: "#121212", // Very dark gray for cards
+      tertiary: "#1E1E1E", // Slightly lighter for inputs
     },
     text: {
-      primary: "#F1F5F9", // Slate 100 - Very light for high contrast
-      secondary: "#CBD5E1", // Slate 300 - Readable gray
-      muted: "#64748B", // Slate 500
+      primary: "#FFFFFF", // Pure white for maximum contrast
+      secondary: "#B0B0B0", // Light gray
+      muted: "#707070", // Medium gray
     },
     border: {
-      default: "#334155", // Slate 700
-      hover: "#475569", // Slate 600
+      default: "#333333", // Dark gray border
+      hover: "#555555", // Lighter on hover
     },
     accent: {
-      primary: "#3B82F6", // Bright Blue for better visibility
-      hover: "#60A5FA", // Lighter blue
-      subtle: "rgba(59, 130, 246, 0.15)",
+      primary: "#4A9EFF", // Bright blue for visibility on black
+      hover: "#6EB8FF", // Lighter blue
+      subtle: "rgba(74, 158, 255, 0.15)",
     },
     status: {
-      success: { bg: "#064E3B", text: "#6EE7B7", border: "#059669" },
-      error: { bg: "#7F1D1D", text: "#FCA5A5", border: "#DC2626" },
-      warning: { bg: "#78350F", text: "#FCD34D", border: "#D97706" },
-      info: { bg: "#1E3A8A", text: "#93C5FD", border: "#3B82F6" },
+      success: { bg: "#0A3D2A", text: "#4ADE80", border: "#059669" },
+      error: { bg: "#3D0A0A", text: "#F87171", border: "#DC2626" },
+      warning: { bg: "#3D2A0A", text: "#FBBF24", border: "#D97706" },
+      info: { bg: "#0A2A3D", text: "#60A5FA", border: "#3B82F6" },
     },
   },
 };
@@ -743,6 +743,17 @@ const baseStyles = `
     background: var(--bg-tertiary);
     border-color: var(--border-hover);
     transform: none;
+  }
+
+  /* Dark mode button adjustments - dark text when highlighted/hovered on light backgrounds */
+  body.dark-mode button.secondary:hover,
+  body.dark-mode .btn.secondary:hover {
+    color: #000;
+  }
+  
+  body.dark-mode button:hover,
+  body.dark-mode .btn:hover {
+    color: #000;
   }
 
   button:disabled {

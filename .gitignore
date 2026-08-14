@@ -1,1 +1,1 @@
-(src/lib/html.js)
+Nothing should be ignored since only a source file (`src/lib/html.js`) was modified and there are no build artifacts, dependencies, or temporary files in the changes.

@@ -146,6 +146,40 @@ const baseStyles = `
     --transition-fast: ${tokens.transition.fast};
     --transition-normal: ${tokens.transition.normal};
   }
+  
+  /* Dark Mode */
+  body.dark-mode {
+    --bg-primary: ${tokens.darkColors.bg.primary};
+    --bg-secondary: ${tokens.darkColors.bg.secondary};
+    --bg-tertiary: ${tokens.darkColors.bg.tertiary};
+    
+    --text-primary: ${tokens.darkColors.text.primary};
+    --text-secondary: ${tokens.darkColors.text.secondary};
+    --text-muted: ${tokens.darkColors.text.muted};
+    
+    --border-default: ${tokens.darkColors.border.default};
+    --border-hover: ${tokens.darkColors.border.hover};
+    
+    --accent-primary: ${tokens.darkColors.accent.primary};
+    --accent-hover: ${tokens.darkColors.accent.hover};
+    --accent-subtle: ${tokens.darkColors.accent.subtle};
+    
+    --success-bg: ${tokens.darkColors.status.success.bg};
+    --success-text: ${tokens.darkColors.status.success.text};
+    --success-border: ${tokens.darkColors.status.success.border};
+    
+    --error-bg: ${tokens.darkColors.status.error.bg};
+    --error-text: ${tokens.darkColors.status.error.text};
+    --error-border: ${tokens.darkColors.status.error.border};
+    
+    --warning-bg: ${tokens.darkColors.status.warning.bg};
+    --warning-text: ${tokens.darkColors.status.warning.text};
+    --warning-border: ${tokens.darkColors.status.warning.border};
+    
+    --info-bg: ${tokens.darkColors.status.info.bg};
+    --info-text: ${tokens.darkColors.status.info.text};
+    --info-border: ${tokens.darkColors.status.info.border};
+  }
 
   /* Reset & Base */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -155,6 +189,7 @@ const baseStyles = `
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    transition: background-color var(--transition-normal), color var(--transition-normal);
   }
   
   body {
@@ -163,6 +198,7 @@ const baseStyles = `
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
+    transition: background-color var(--transition-normal), color var(--transition-normal);
   }
 
   /* Focus */
@@ -258,6 +294,39 @@ const baseStyles = `
     font-weight: 500;
     color: var(--text-secondary);
   }
+  
+  /* Dark Mode Toggle Button */
+  .theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    color: var(--text-secondary);
+    padding: 0;
+  }
+  
+  .theme-toggle:hover {
+    background: var(--border-default);
+    color: var(--text-primary);
+  }
+  
+  .theme-toggle svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  
+  .theme-toggle .sun-icon { display: none; }
+  .theme-toggle .moon-icon { display: block; }
+  
+  body.dark-mode .theme-toggle .sun-icon { display: block; }
+  body.dark-mode .theme-toggle .moon-icon { display: none; }
 
   /* Navigation */
   nav {
@@ -1176,6 +1245,14 @@ export function layout({ title, content, session, currentPage = "" }) {
       </a>
       ${session ? `
         <div class="header-user">
+          <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+            <svg class="sun-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+            <svg class="moon-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+            </svg>
+          </button>
           <span class="header-username">Welcome, ${escHtml(session.username)}</span>
         </div>
       ` : ""}
@@ -1186,6 +1263,31 @@ export function layout({ title, content, session, currentPage = "" }) {
     ${content}
   </main>
   <script>
+  // Dark Mode Toggle
+  (function() {
+    var themeToggle = document.getElementById('themeToggle');
+    var body = document.body;
+    
+    // Check for saved theme preference or default to light mode
+    var savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      body.classList.add('dark-mode');
+    }
+    
+    if (themeToggle) {
+      themeToggle.addEventListener('click', function() {
+        body.classList.toggle('dark-mode');
+        
+        // Save preference
+        if (body.classList.contains('dark-mode')) {
+          localStorage.setItem('theme', 'dark');
+        } else {
+          localStorage.setItem('theme', 'light');
+        }
+      });
+    }
+  })();
+  
   // Shared Admin toggle behavior: every .toggle-input live-updates its
   // ON/OFF state text, and toggles marked data-submit save their form on change.
   (function () {

@@ -78,26 +78,26 @@ const tokens = {
     normal: "200ms ease",
   },
 
-  // Dark mode colors
+  // Dark mode colors - Improved contrast
   darkColors: {
     bg: {
-      primary: "#0F0F0F",
-      secondary: "#1A1A1A",
-      tertiary: "#242424",
+      primary: "#0F172A", // Slate 900
+      secondary: "#1E293B", // Slate 800
+      tertiary: "#334155", // Slate 700
     },
     text: {
-      primary: "#FFFFFF",
-      secondary: "#A8A8A8",
-      muted: "#737373",
+      primary: "#F1F5F9", // Slate 100 - Very light for high contrast
+      secondary: "#CBD5E1", // Slate 300 - Readable gray
+      muted: "#64748B", // Slate 500
     },
     border: {
-      default: "#2A2A2A",
-      hover: "#404040",
+      default: "#334155", // Slate 700
+      hover: "#475569", // Slate 600
     },
     accent: {
-      primary: "#FFFFFF",
-      hover: "#E5E5E5",
-      subtle: "rgba(255, 255, 255, 0.08)",
+      primary: "#3B82F6", // Bright Blue for better visibility
+      hover: "#60A5FA", // Lighter blue
+      subtle: "rgba(59, 130, 246, 0.15)",
     },
     status: {
       success: { bg: "#064E3B", text: "#6EE7B7", border: "#059669" },
@@ -336,19 +336,20 @@ const baseStyles = `
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     padding: 0;
   }
   
   .theme-toggle:hover {
-    background: var(--border-default);
-    color: var(--text-primary);
+    background: var(--border-hover);
+    color: var(--accent-primary);
   }
   
   .theme-toggle svg {
     width: 18px;
     height: 18px;
     flex-shrink: 0;
+    fill: currentColor;
   }
   
   .theme-toggle .sun-icon { display: none; }
@@ -706,6 +707,7 @@ const baseStyles = `
 
   button.danger, .btn.danger {
     background: var(--error-text);
+    color: #fff;
   }
 
   button.danger:hover, .btn.danger:hover {
@@ -714,6 +716,7 @@ const baseStyles = `
 
   button.success, .btn.success {
     background: var(--success-text);
+    color: #fff;
   }
 
   button.success:hover, .btn.success:hover {
@@ -722,6 +725,7 @@ const baseStyles = `
 
   button.warning, .btn.warning {
     background: var(--warning-text);
+    color: #000;
   }
 
   button.small, .btn.small {

@@ -77,6 +77,35 @@ const tokens = {
     fast: "150ms ease",
     normal: "200ms ease",
   },
+
+  // Dark mode colors
+  darkColors: {
+    bg: {
+      primary: "#0F0F0F",
+      secondary: "#1A1A1A",
+      tertiary: "#242424",
+    },
+    text: {
+      primary: "#FFFFFF",
+      secondary: "#A8A8A8",
+      muted: "#737373",
+    },
+    border: {
+      default: "#2A2A2A",
+      hover: "#404040",
+    },
+    accent: {
+      primary: "#FFFFFF",
+      hover: "#E5E5E5",
+      subtle: "rgba(255, 255, 255, 0.08)",
+    },
+    status: {
+      success: { bg: "#064E3B", text: "#6EE7B7", border: "#059669" },
+      error: { bg: "#7F1D1D", text: "#FCA5A5", border: "#DC2626" },
+      warning: { bg: "#78350F", text: "#FCD34D", border: "#D97706" },
+      info: { bg: "#1E3A8A", text: "#93C5FD", border: "#3B82F6" },
+    },
+  },
 };
 
 // ---- Base Styles ----
